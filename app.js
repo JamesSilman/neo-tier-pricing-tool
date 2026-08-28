@@ -43,6 +43,17 @@ const state = {
 
 const INITIAL_STATE = JSON.parse(JSON.stringify(state));
 
+// ─── Tier display names ──────────────────────────────────────────────────────
+// The internal tier keys (light/core/rapid) are permanent identifiers used for state,
+// pricing lookups and SKU size suffixes — they never change. This map is the single
+// source of truth for the customer-facing tier name. Everything that shows a tier name
+// to the user derives it from here (or from the config .name values, which follow the
+// same words), so a future rename is a one-line change.
+const TIER_DISPLAY_NAME = { light: 'Standard', core: 'Accelerate', rapid: 'Performance' };
+function tierDisplayName(key) {
+  return TIER_DISPLAY_NAME[key] || (key ? key.charAt(0).toUpperCase() + key.slice(1) : '');
+}
+
 // ─── Session persistence ─────────────────────────────────────────────────────
 // Guards against losing in-progress input to an accidental page refresh or the
 // browser's native Back/Forward navigation (the in-app step nav already keeps
@@ -3142,7 +3153,7 @@ function renderStep7() {
   const b2 = tier ? C.foundation_boosters[tier] : null;
   const refTier3  = tier;
   const refSize3  = refTier3 === 'light' ? 'S' : refTier3 === 'core' ? 'MD' : refTier3 === 'rapid' ? 'L' : tierSuffix2;
-  const refName3  = refTier3 ? refTier3.charAt(0).toUpperCase() + refTier3.slice(1) : '';
+  const refName3  = tierDisplayName(refTier3);
 
   // Section 1 — Foundation tier
   if (state.pricingModel === 'consumption') {
@@ -3622,7 +3633,7 @@ function buildSkuRows() {
   // ── Foundation ──────────────────────────────────────────────────────────────
   if (state.pricingModel === 'consumption') {
     const ct = C.consumption_tiers[tier];
-    const tierName = tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : '';
+    const tierName = tier ? tierDisplayName(tier) : '';
     rows.push({ sku: ct.sku, name: ct.name, qty: 1, unit: 'Per year', notes: '', layer: 'foundation', unitBaseUSD: ct.price, key: 'found_base', category: 'nuixSoftware' });
     if (bst.volume > 0)
       rows.push({ sku: ct.tb_booster_sku, name: `Additional TB – ${tierName} (Consumption)`, qty: bst.volume, unit: 'Per TB/yr', notes: '', layer: 'foundation', unitBaseUSD: ct.tb_booster_rate, key: 'found_volume', category: 'nuixSoftware' });
@@ -3653,7 +3664,7 @@ function buildSkuRows() {
     const workerSkus = { light: 'NEOBWS', core: 'NEOBWMD', rapid: 'NEOBWL' };
     const volumeSkus = { light: 'NEO-BOOST-VOL-L', core: 'NEO-BOOST-VOL-C', rapid: 'NEO-BOOST-VOL-R' };
     const userSkus   = { light: 'NEOBRS', core: 'NEOBRMD', rapid: 'NEOBRL' };
-    const tierName   = tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : '';
+    const tierName   = tier ? tierDisplayName(tier) : '';
     if (bst.workers > 0 && tierSuffix) rows.push({ sku: workerSkus[tier], name: `Additional Worker – ${tierName}`,           qty: bst.workers,       unit: 'Per worker/yr',  notes: '', layer: 'foundation', unitBaseUSD: b.worker, key: 'found_workers', category: 'nuixSoftware' });
     if (bst.volume  > 0 && tierSuffix) rows.push({ sku: volumeSkus[tier], name: `Additional Volume – ${tierName}`,           qty: bst.volume,        unit: 'Per TB/yr',      notes: '', layer: 'foundation', unitBaseUSD: b.volume_tb, key: 'found_volume', category: 'nuixSoftware' });
     if (bst.users   > 0 && tierSuffix) rows.push({ sku: userSkus[tier],   name: `Additional Concurrent User – ${tierName}`, qty: bst.users,         unit: 'Per user/yr',    notes: '', layer: 'foundation', unitBaseUSD: b.user, key: 'found_users', category: 'nuixSoftware' });
@@ -3673,7 +3684,7 @@ function buildSkuRows() {
   // ── AI Suite ────────────────────────────────────────────────────────────────
   const refTier     = tier;
   const refTierSize = refTier === 'light' ? 'S' : refTier === 'core' ? 'MD' : refTier === 'rapid' ? 'L' : tierSize;
-  const refTierName = refTier ? refTier.charAt(0).toUpperCase() + refTier.slice(1) : '';
+  const refTierName = tierDisplayName(refTier);
   const aiDisplayMap = { aiBundle: ['NEOAIBNDL01','AI Bundle'], enrich: ['NEOAI001','Enrich'], semantic: ['NEOS001','Semantic Search'], transcription: ['NEOS002','Transcription'], agenticBYOAI: ['NEOAI002','BYO AI'], byoAIAdvanced: ['NEOAI003','BYO AI - Advanced'], byoAIGraph: ['NEOAI004','BYO AI - Graph'], agenticAdvanced: ['NEOAI005','Agentic: AI - Advanced'] };
   Object.entries(state.aiSuite).forEach(([key, on]) => {
     if (on && refTierSize && aiDisplayMap[key]) {
@@ -5937,14 +5948,14 @@ function generateBudgetQuote(variant) {
   if (state.pricingModel === 'consumption' && tier) {
     const ct       = C.consumption_tiers[tier];
     const userSkus = { light: 'NEOBRS', core: 'NEOBRMD', rapid: 'NEOBRL' };
-    const tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
+    const tierName = tierDisplayName(tier);
     if (bst.volume > 0) rows.push({ sku: ct.tb_booster_sku, name: `Additional TB – ${tierName} (Consumption)`, qty: bst.volume, unit: 'Per TB/yr', layer: 'foundation', unitBaseUSD: ct.tb_booster_rate });
     if (bst.users  > 0) rows.push({ sku: userSkus[tier],    name: `Additional Concurrent User – ${tierName}`,  qty: bst.users,  unit: 'Per user/yr', layer: 'foundation', unitBaseUSD: b.user });
   } else if (tierSuffix) {
     const workerSkus = { light: 'NEOBWS', core: 'NEOBWMD', rapid: 'NEOBWL' };
     const volumeSkus = { light: 'NEO-BOOST-VOL-L', core: 'NEO-BOOST-VOL-C', rapid: 'NEO-BOOST-VOL-R' };
     const userSkus   = { light: 'NEOBRS', core: 'NEOBRMD', rapid: 'NEOBRL' };
-    const tierName   = tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : '';
+    const tierName   = tier ? tierDisplayName(tier) : '';
     if (bst.workers > 0) rows.push({ sku: workerSkus[tier], name: `Additional Worker – ${tierName}`,           qty: bst.workers, unit: 'Per worker/yr', layer: 'foundation', unitBaseUSD: b.worker });
     if (bst.volume  > 0) rows.push({ sku: volumeSkus[tier], name: `Additional Volume – ${tierName}`,           qty: bst.volume,  unit: 'Per TB/yr',     layer: 'foundation', unitBaseUSD: b.volume_tb });
     if (bst.users   > 0) rows.push({ sku: userSkus[tier],   name: `Additional Concurrent User – ${tierName}`, qty: bst.users,   unit: 'Per user/yr',   layer: 'foundation', unitBaseUSD: b.user });
@@ -6271,7 +6282,7 @@ function generateBudgetQuote(variant) {
   <div style="margin-bottom:16px;background:linear-gradient(135deg,#f8faff 0%,#eef4ff 100%);border:1.5px solid #dbe4f3;border-radius:10px;padding:16px 20px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#6b7280">Nuix Neo Foundation — Included Capacity</div>
-      <span style="background:${tierBadgeColors[tier] || '#64748b'};color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:3px 10px;border-radius:20px">${tier.charAt(0).toUpperCase() + tier.slice(1)}</span>
+      <span style="background:${tierBadgeColors[tier] || '#64748b'};color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:3px 10px;border-radius:20px">${tierDisplayName(tier)}</span>
     </div>
     <div style="display:flex">
       <div style="flex:1;text-align:center;padding:0 10px;border-right:1px solid #dbe4f3">
@@ -6798,7 +6809,7 @@ function showPriceList() {
     boost:   tierKeys.map(k => ({ key: k, name: C.foundation_tiers[k].name, b: C.foundation_boosters[k] })),
     consTiers: tierKeys.map(k => ({ key: k, name: C.consumption_tiers[k].name, price: C.consumption_tiers[k].price, included_tb: C.consumption_tiers[k].included_tb, users: C.consumption_tiers[k].users, training_hours: C.consumption_tiers[k].training_hours, tb_booster_rate: C.consumption_tiers[k].tb_booster_rate })),
     support: [
-      { key: 'bronze', name: 'Advantage Bronze upgrade', desc: 'Included in Light', price: C.support_booster_prices.bronze },
+      { key: 'bronze', name: 'Advantage Bronze upgrade', desc: 'Included in Standard', price: C.support_booster_prices.bronze },
       { key: 'silver', name: 'Advantage Silver upgrade', desc: 'Upgrade from Advantage Bronze',     price: C.support_booster_prices.silver },
       { key: 'gold',   name: 'Advantage Gold upgrade',   desc: 'Upgrade from Advantage Silver',     price: C.support_booster_prices.gold   }
     ],
@@ -7103,29 +7114,29 @@ function showPriceList() {
     const skuWin = window.open('', '_skuList');
     const skuRows = [
       // Layer 1 — Nuix Neo Foundation
-      ['Layer 1 – Nuix Neo Foundation','NEO007S','Nuix Neo Foundation – Light','Per year','$155,000','10 workers · 50TB · 10 users · 100 training hrs · Advantage Bronze'],
-      ['Layer 1 – Nuix Neo Foundation','NEO007MD','Nuix Neo Foundation – Core','Per year','$400,000','30 workers · 150TB · 30 users · 300 training hrs · Advantage Bronze'],
-      ['Layer 1 – Nuix Neo Foundation','NEO007L','Nuix Neo Foundation – Rapid','Per year','$800,000','80 workers · 400TB · 80 users · 800 training hrs · Advantage Silver'],
+      ['Layer 1 – Nuix Neo Foundation','NEO007S','Nuix Neo Foundation – Standard','Per year','$155,000','10 workers · 50TB · 10 users · 100 training hrs · Advantage Bronze'],
+      ['Layer 1 – Nuix Neo Foundation','NEO007MD','Nuix Neo Foundation – Accelerate','Per year','$400,000','30 workers · 150TB · 30 users · 300 training hrs · Advantage Bronze'],
+      ['Layer 1 – Nuix Neo Foundation','NEO007L','Nuix Neo Foundation – Performance','Per year','$800,000','80 workers · 400TB · 80 users · 800 training hrs · Advantage Silver'],
       // Layer 1 — Nuix Neo Foundation (Consumption)
-      ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CS','Nuix Neo Foundation – Light (Consumption)','Per year','$155,000','10TB · 10 users · 100 training hrs · Advantage Bronze'],
-      ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CMD','Nuix Neo Foundation – Core (Consumption)','Per year','$400,000','40TB · 30 users · 300 training hrs · Advantage Bronze'],
-      ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CL','Nuix Neo Foundation – Rapid (Consumption)','Per year','$800,000','100TB · 80 users · 800 training hrs · Advantage Silver'],
+      ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CS','Nuix Neo Foundation – Standard (Consumption)','Per year','$155,000','10TB · 10 users · 100 training hrs · Advantage Bronze'],
+      ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CMD','Nuix Neo Foundation – Accelerate (Consumption)','Per year','$400,000','40TB · 30 users · 300 training hrs · Advantage Bronze'],
+      ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CL','Nuix Neo Foundation – Performance (Consumption)','Per year','$800,000','100TB · 80 users · 800 training hrs · Advantage Silver'],
       // Foundation boosters
-      ['Layer 1 – Foundation Booster','NEOBWS','Additional Worker – Light','Per worker/yr','$25,000',''],
-      ['Layer 1 – Foundation Booster','NEOBWMD','Additional Worker – Core','Per worker/yr','$16,000',''],
-      ['Layer 1 – Foundation Booster','NEOBWL','Additional Worker – Rapid','Per worker/yr','$10,000',''],
-      ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-L','Additional Volume – Light','Per TB/yr','$6,000',''],
-      ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-C','Additional Volume – Core','Per TB/yr','$5,333',''],
-      ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-R','Additional Volume – Rapid','Per TB/yr','$4,000',''],
-      ['Layer 1 – Foundation Booster','NEOBRS','Additional Concurrent User – Light','Per user/yr','$9,000',''],
-      ['Layer 1 – Foundation Booster','NEOBRMD','Additional Concurrent User – Core','Per user/yr','$6,000',''],
-      ['Layer 1 – Foundation Booster','NEOBRL','Additional Concurrent User – Rapid','Per user/yr','$3,000',''],
+      ['Layer 1 – Foundation Booster','NEOBWS','Additional Worker – Standard','Per worker/yr','$25,000',''],
+      ['Layer 1 – Foundation Booster','NEOBWMD','Additional Worker – Accelerate','Per worker/yr','$16,000',''],
+      ['Layer 1 – Foundation Booster','NEOBWL','Additional Worker – Performance','Per worker/yr','$10,000',''],
+      ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-L','Additional Volume – Standard','Per TB/yr','$6,000',''],
+      ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-C','Additional Volume – Accelerate','Per TB/yr','$5,333',''],
+      ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-R','Additional Volume – Performance','Per TB/yr','$4,000',''],
+      ['Layer 1 – Foundation Booster','NEOBRS','Additional Concurrent User – Standard','Per user/yr','$9,000',''],
+      ['Layer 1 – Foundation Booster','NEOBRMD','Additional Concurrent User – Accelerate','Per user/yr','$6,000',''],
+      ['Layer 1 – Foundation Booster','NEOBRL','Additional Concurrent User – Performance','Per user/yr','$3,000',''],
       // Foundation boosters (Consumption)
-      ['Layer 1 – Foundation Booster (Consumption)','NEOBTBS','Additional TB – Light (Consumption)','Per TB/yr','$31,000',''],
-      ['Layer 1 – Foundation Booster (Consumption)','NEOBTBMD','Additional TB – Core (Consumption)','Per TB/yr','$20,000',''],
-      ['Layer 1 – Foundation Booster (Consumption)','NEOBTBL','Additional TB – Rapid (Consumption)','Per TB/yr','$16,000',''],
+      ['Layer 1 – Foundation Booster (Consumption)','NEOBTBS','Additional TB – Standard (Consumption)','Per TB/yr','$31,000',''],
+      ['Layer 1 – Foundation Booster (Consumption)','NEOBTBMD','Additional TB – Accelerate (Consumption)','Per TB/yr','$20,000',''],
+      ['Layer 1 – Foundation Booster (Consumption)','NEOBTBL','Additional TB – Performance (Consumption)','Per TB/yr','$16,000',''],
       // Layer 4 — Advantage & Implementation
-      ['Layer 4 – Advantage & Implementation','CSLT101U','Support Upgrade – Advantage Bronze','Per year','$30,000','Included in Light; incremental for Core/Rapid'],
+      ['Layer 4 – Advantage & Implementation','CSLT101U','Support Upgrade – Advantage Bronze','Per year','$30,000','Included in Standard; incremental for Accelerate/Performance'],
       ['Layer 4 – Advantage & Implementation','CSLT102U','Support Upgrade – Advantage Silver','Per year','$60,000','$30,000 incremental from Bronze'],
       ['Layer 4 – Advantage & Implementation','CSLT103U','Support Upgrade – Advantage Gold','Per year','$105,000','$75,000 from Bronze · $45,000 from Silver'],
       ['Layer 4 – Advantage & Implementation','CSLT101F','Advantage Bronze','Per year','$0','Included with Foundation tier'],
@@ -7136,33 +7147,33 @@ function showPriceList() {
       ['Layer 4 – Advantage & Implementation','CSLT300','Nuix Neo Foundation Implementation Package','Per instance','$31,310','One-off · Year 1 only for multi-year deals'],
       ['Layer 4 – Advantage & Implementation','CSLT301','Nuix Neo Solution Implementation Package','Per instance','$46,020','One-off · Year 1 only for multi-year deals'],
       // Layer 2 — AI Suite
-      ['Layer 2 – AI Suite','NEOAIBNDL01S','AI Bundle – Light','Per year','$105,000','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
-      ['Layer 2 – AI Suite','NEOAIBNDL01MD','AI Bundle – Core','Per year','$241,500','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
-      ['Layer 2 – AI Suite','NEOAIBNDL01L','AI Bundle – Rapid','Per year','$420,000','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
-      ['Layer 2 – AI Suite','NEOAI001S','Enrich – Light','Per year','$50,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOAI001MD','Enrich – Core','Per year','$115,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOAI001L','Enrich – Rapid','Per year','$200,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOS001S','Semantic Search – Light','Per year','$50,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOS001MD','Semantic Search – Core','Per year','$115,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOS001L','Semantic Search – Rapid','Per year','$200,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOS002S','Transcription – Light','Per year','$50,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOS002MD','Transcription – Core','Per year','$115,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOS002L','Transcription – Rapid','Per year','$200,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOAI002S','BYO AI – Light','Per year','$100,000',''],
-      ['Layer 2 – AI Suite','NEOAI002MD','BYO AI – Core','Per year','$135,000',''],
-      ['Layer 2 – AI Suite','NEOAI002L','BYO AI – Rapid','Per year','$200,000',''],
-      ['Layer 2 – AI Suite','NEOAI003S','BYO AI - Advanced – Light','Per year','$180,000',''],
-      ['Layer 2 – AI Suite','NEOAI003MD','BYO AI - Advanced – Core','Per year','$240,000',''],
-      ['Layer 2 – AI Suite','NEOAI003L','BYO AI - Advanced – Rapid','Per year','$360,000',''],
-      ['Layer 2 – AI Suite','NEOAI004S','BYO AI - Graph – Light','Per year','$300,000','Requires Knowledge Graph — auto-added as a separate line item'],
-      ['Layer 2 – AI Suite','NEOAI004MD','BYO AI - Graph – Core','Per year','$400,000','Requires Knowledge Graph — auto-added as a separate line item'],
-      ['Layer 2 – AI Suite','NEOAI004L','BYO AI - Graph – Rapid','Per year','$600,000','Requires Knowledge Graph — auto-added as a separate line item'],
-      ['Layer 2 – AI Suite','NEOAI005S','Agentic: AI - Advanced – Light','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOAI005MD','Agentic: AI - Advanced – Core','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOAI005L','Agentic: AI - Advanced – Rapid','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOSLIBS','Solutions Library – Light','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
-      ['Layer 2 – AI Suite','NEOSLIBMD','Solutions Library – Core','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
-      ['Layer 2 – AI Suite','NEOSLIBL','Solutions Library – Rapid','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
+      ['Layer 2 – AI Suite','NEOAIBNDL01S','AI Bundle – Standard','Per year','$105,000','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
+      ['Layer 2 – AI Suite','NEOAIBNDL01MD','AI Bundle – Accelerate','Per year','$241,500','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
+      ['Layer 2 – AI Suite','NEOAIBNDL01L','AI Bundle – Performance','Per year','$420,000','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
+      ['Layer 2 – AI Suite','NEOAI001S','Enrich – Standard','Per year','$50,000','Includes Solutions Library'],
+      ['Layer 2 – AI Suite','NEOAI001MD','Enrich – Accelerate','Per year','$115,000','Includes Solutions Library'],
+      ['Layer 2 – AI Suite','NEOAI001L','Enrich – Performance','Per year','$200,000','Includes Solutions Library'],
+      ['Layer 2 – AI Suite','NEOS001S','Semantic Search – Standard','Per year','$50,000','Includes Solutions Library'],
+      ['Layer 2 – AI Suite','NEOS001MD','Semantic Search – Accelerate','Per year','$115,000','Includes Solutions Library'],
+      ['Layer 2 – AI Suite','NEOS001L','Semantic Search – Performance','Per year','$200,000','Includes Solutions Library'],
+      ['Layer 2 – AI Suite','NEOS002S','Transcription – Standard','Per year','$50,000','Includes Solutions Library'],
+      ['Layer 2 – AI Suite','NEOS002MD','Transcription – Accelerate','Per year','$115,000','Includes Solutions Library'],
+      ['Layer 2 – AI Suite','NEOS002L','Transcription – Performance','Per year','$200,000','Includes Solutions Library'],
+      ['Layer 2 – AI Suite','NEOAI002S','BYO AI – Standard','Per year','$100,000',''],
+      ['Layer 2 – AI Suite','NEOAI002MD','BYO AI – Accelerate','Per year','$135,000',''],
+      ['Layer 2 – AI Suite','NEOAI002L','BYO AI – Performance','Per year','$200,000',''],
+      ['Layer 2 – AI Suite','NEOAI003S','BYO AI - Advanced – Standard','Per year','$180,000',''],
+      ['Layer 2 – AI Suite','NEOAI003MD','BYO AI - Advanced – Accelerate','Per year','$240,000',''],
+      ['Layer 2 – AI Suite','NEOAI003L','BYO AI - Advanced – Performance','Per year','$360,000',''],
+      ['Layer 2 – AI Suite','NEOAI004S','BYO AI - Graph – Standard','Per year','$300,000','Requires Knowledge Graph — auto-added as a separate line item'],
+      ['Layer 2 – AI Suite','NEOAI004MD','BYO AI - Graph – Accelerate','Per year','$400,000','Requires Knowledge Graph — auto-added as a separate line item'],
+      ['Layer 2 – AI Suite','NEOAI004L','BYO AI - Graph – Performance','Per year','$600,000','Requires Knowledge Graph — auto-added as a separate line item'],
+      ['Layer 2 – AI Suite','NEOAI005S','Agentic: AI - Advanced – Standard','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
+      ['Layer 2 – AI Suite','NEOAI005MD','Agentic: AI - Advanced – Accelerate','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
+      ['Layer 2 – AI Suite','NEOAI005L','Agentic: AI - Advanced – Performance','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
+      ['Layer 2 – AI Suite','NEOSLIBS','Solutions Library – Standard','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
+      ['Layer 2 – AI Suite','NEOSLIBMD','Solutions Library – Accelerate','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
+      ['Layer 2 – AI Suite','NEOSLIBL','Solutions Library – Performance','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
       // Layer 3 — Visualisation
       ['Layer 3 – Visualisation','VISBNDL001S','Visualisation Bundle – Small','Per bundle/yr','$95,860','10 Named Users · 64GB Memory'],
       ['Layer 3 – Visualisation','VISBNDL001MD','Visualisation Bundle – Medium','Per bundle/yr','$168,970','25 Named Users · 128GB Memory'],
@@ -7323,25 +7334,25 @@ function showPriceList() {
 
 function showSKUListPage() {
   const skuRows = [
-    ['Layer 1 – Nuix Neo Foundation','NEO007S','Nuix Neo Foundation – Light','Per year','$155,000','10 workers · 50TB · 10 users · 100 training hrs · Advantage Bronze'],
-    ['Layer 1 – Nuix Neo Foundation','NEO007MD','Nuix Neo Foundation – Core','Per year','$400,000','30 workers · 150TB · 30 users · 300 training hrs · Advantage Bronze'],
-    ['Layer 1 – Nuix Neo Foundation','NEO007L','Nuix Neo Foundation – Rapid','Per year','$800,000','80 workers · 400TB · 80 users · 800 training hrs · Advantage Silver'],
-    ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CS','Nuix Neo Foundation – Light (Consumption)','Per year','$155,000','10TB · 10 users · 100 training hrs · Advantage Bronze'],
-    ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CMD','Nuix Neo Foundation – Core (Consumption)','Per year','$400,000','40TB · 30 users · 300 training hrs · Advantage Bronze'],
-    ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CL','Nuix Neo Foundation – Rapid (Consumption)','Per year','$800,000','100TB · 80 users · 800 training hrs · Advantage Silver'],
-    ['Layer 1 – Foundation Booster','NEOBWS','Additional Worker – Light','Per worker/yr','$25,000',''],
-    ['Layer 1 – Foundation Booster','NEOBWMD','Additional Worker – Core','Per worker/yr','$16,000',''],
-    ['Layer 1 – Foundation Booster','NEOBWL','Additional Worker – Rapid','Per worker/yr','$10,000',''],
-    ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-L','Additional Volume – Light','Per TB/yr','$6,000',''],
-    ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-C','Additional Volume – Core','Per TB/yr','$5,333',''],
-    ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-R','Additional Volume – Rapid','Per TB/yr','$4,000',''],
-    ['Layer 1 – Foundation Booster','NEOBRS','Additional Concurrent User – Light','Per user/yr','$9,000',''],
-    ['Layer 1 – Foundation Booster','NEOBRMD','Additional Concurrent User – Core','Per user/yr','$6,000',''],
-    ['Layer 1 – Foundation Booster','NEOBRL','Additional Concurrent User – Rapid','Per user/yr','$3,000',''],
-    ['Layer 1 – Foundation Booster (Consumption)','NEOBTBS','Additional TB – Light (Consumption)','Per TB/yr','$31,000',''],
-    ['Layer 1 – Foundation Booster (Consumption)','NEOBTBMD','Additional TB – Core (Consumption)','Per TB/yr','$20,000',''],
-    ['Layer 1 – Foundation Booster (Consumption)','NEOBTBL','Additional TB – Rapid (Consumption)','Per TB/yr','$16,000',''],
-    ['Layer 4 – Advantage & Implementation','CSLT101U','Support Upgrade – Advantage Bronze','Per year','$30,000','Included in Light; incremental for Core/Rapid'],
+    ['Layer 1 – Nuix Neo Foundation','NEO007S','Nuix Neo Foundation – Standard','Per year','$155,000','10 workers · 50TB · 10 users · 100 training hrs · Advantage Bronze'],
+    ['Layer 1 – Nuix Neo Foundation','NEO007MD','Nuix Neo Foundation – Accelerate','Per year','$400,000','30 workers · 150TB · 30 users · 300 training hrs · Advantage Bronze'],
+    ['Layer 1 – Nuix Neo Foundation','NEO007L','Nuix Neo Foundation – Performance','Per year','$800,000','80 workers · 400TB · 80 users · 800 training hrs · Advantage Silver'],
+    ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CS','Nuix Neo Foundation – Standard (Consumption)','Per year','$155,000','10TB · 10 users · 100 training hrs · Advantage Bronze'],
+    ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CMD','Nuix Neo Foundation – Accelerate (Consumption)','Per year','$400,000','40TB · 30 users · 300 training hrs · Advantage Bronze'],
+    ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CL','Nuix Neo Foundation – Performance (Consumption)','Per year','$800,000','100TB · 80 users · 800 training hrs · Advantage Silver'],
+    ['Layer 1 – Foundation Booster','NEOBWS','Additional Worker – Standard','Per worker/yr','$25,000',''],
+    ['Layer 1 – Foundation Booster','NEOBWMD','Additional Worker – Accelerate','Per worker/yr','$16,000',''],
+    ['Layer 1 – Foundation Booster','NEOBWL','Additional Worker – Performance','Per worker/yr','$10,000',''],
+    ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-L','Additional Volume – Standard','Per TB/yr','$6,000',''],
+    ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-C','Additional Volume – Accelerate','Per TB/yr','$5,333',''],
+    ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-R','Additional Volume – Performance','Per TB/yr','$4,000',''],
+    ['Layer 1 – Foundation Booster','NEOBRS','Additional Concurrent User – Standard','Per user/yr','$9,000',''],
+    ['Layer 1 – Foundation Booster','NEOBRMD','Additional Concurrent User – Accelerate','Per user/yr','$6,000',''],
+    ['Layer 1 – Foundation Booster','NEOBRL','Additional Concurrent User – Performance','Per user/yr','$3,000',''],
+    ['Layer 1 – Foundation Booster (Consumption)','NEOBTBS','Additional TB – Standard (Consumption)','Per TB/yr','$31,000',''],
+    ['Layer 1 – Foundation Booster (Consumption)','NEOBTBMD','Additional TB – Accelerate (Consumption)','Per TB/yr','$20,000',''],
+    ['Layer 1 – Foundation Booster (Consumption)','NEOBTBL','Additional TB – Performance (Consumption)','Per TB/yr','$16,000',''],
+    ['Layer 4 – Advantage & Implementation','CSLT101U','Support Upgrade – Advantage Bronze','Per year','$30,000','Included in Standard; incremental for Accelerate/Performance'],
     ['Layer 4 – Advantage & Implementation','CSLT102U','Support Upgrade – Advantage Silver','Per year','$60,000','$30,000 incremental from Bronze'],
     ['Layer 4 – Advantage & Implementation','CSLT103U','Support Upgrade – Advantage Gold','Per year','$105,000','$75,000 from Bronze · $45,000 from Silver'],
     ['Layer 4 – Advantage & Implementation','CSLT101F','Advantage Bronze','Per year','$0','Included with Foundation tier'],
@@ -7351,33 +7362,33 @@ function showSKUListPage() {
     ['Layer 4 – Advantage & Implementation','CSLT107','Nuix Advantage - Top Up 24 Hours','Per hour','$280','Sold in packs of 24 hrs'],
     ['Layer 4 – Advantage & Implementation','CSLT300','Nuix Neo Foundation Implementation Package','Per instance','$31,310','One-off · Year 1 only for multi-year deals'],
     ['Layer 4 – Advantage & Implementation','CSLT301','Nuix Neo Solution Implementation Package','Per instance','$46,020','One-off · Year 1 only for multi-year deals'],
-    ['Layer 2 – AI Suite','NEOAIBNDL01S','AI Bundle – Light','Per year','$105,000','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
-    ['Layer 2 – AI Suite','NEOAIBNDL01MD','AI Bundle – Core','Per year','$241,500','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
-    ['Layer 2 – AI Suite','NEOAIBNDL01L','AI Bundle – Rapid','Per year','$420,000','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
-    ['Layer 2 – AI Suite','NEOAI001S','Enrich – Light','Per year','$50,000','Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOAI001MD','Enrich – Core','Per year','$115,000','Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOAI001L','Enrich – Rapid','Per year','$200,000','Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOS001S','Semantic – Light','Per year','$50,000','Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOS001MD','Semantic – Core','Per year','$115,000','Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOS001L','Semantic – Rapid','Per year','$200,000','Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOS002S','Transcription – Light','Per year','$50,000','Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOS002MD','Transcription – Core','Per year','$115,000','Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOS002L','Transcription – Rapid','Per year','$200,000','Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOAI002S','BYO AI – Light','Per year','$100,000',''],
-    ['Layer 2 – AI Suite','NEOAI002MD','BYO AI – Core','Per year','$135,000',''],
-    ['Layer 2 – AI Suite','NEOAI002L','BYO AI – Rapid','Per year','$200,000',''],
-    ['Layer 2 – AI Suite','NEOAI003S','BYO AI - Advanced – Light','Per year','$180,000',''],
-    ['Layer 2 – AI Suite','NEOAI003MD','BYO AI - Advanced – Core','Per year','$240,000',''],
-    ['Layer 2 – AI Suite','NEOAI003L','BYO AI - Advanced – Rapid','Per year','$360,000',''],
-    ['Layer 2 – AI Suite','NEOAI004S','BYO AI - Graph – Light','Per year','$300,000','Requires Knowledge Graph — auto-added as a separate line item'],
-    ['Layer 2 – AI Suite','NEOAI004MD','BYO AI - Graph – Core','Per year','$400,000','Requires Knowledge Graph — auto-added as a separate line item'],
-    ['Layer 2 – AI Suite','NEOAI004L','BYO AI - Graph – Rapid','Per year','$600,000','Requires Knowledge Graph — auto-added as a separate line item'],
-    ['Layer 2 – AI Suite','NEOAI005S','Agentic: AI - Advanced – Light','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOAI005MD','Agentic: AI - Advanced – Core','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOAI005L','Agentic: AI - Advanced – Rapid','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOSLIBS','Solutions Library – Light','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
-    ['Layer 2 – AI Suite','NEOSLIBMD','Solutions Library – Core','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
-    ['Layer 2 – AI Suite','NEOSLIBL','Solutions Library – Rapid','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
+    ['Layer 2 – AI Suite','NEOAIBNDL01S','AI Bundle – Standard','Per year','$105,000','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
+    ['Layer 2 – AI Suite','NEOAIBNDL01MD','AI Bundle – Accelerate','Per year','$241,500','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
+    ['Layer 2 – AI Suite','NEOAIBNDL01L','AI Bundle – Performance','Per year','$420,000','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
+    ['Layer 2 – AI Suite','NEOAI001S','Enrich – Standard','Per year','$50,000','Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOAI001MD','Enrich – Accelerate','Per year','$115,000','Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOAI001L','Enrich – Performance','Per year','$200,000','Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOS001S','Semantic – Standard','Per year','$50,000','Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOS001MD','Semantic – Accelerate','Per year','$115,000','Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOS001L','Semantic – Performance','Per year','$200,000','Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOS002S','Transcription – Standard','Per year','$50,000','Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOS002MD','Transcription – Accelerate','Per year','$115,000','Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOS002L','Transcription – Performance','Per year','$200,000','Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOAI002S','BYO AI – Standard','Per year','$100,000',''],
+    ['Layer 2 – AI Suite','NEOAI002MD','BYO AI – Accelerate','Per year','$135,000',''],
+    ['Layer 2 – AI Suite','NEOAI002L','BYO AI – Performance','Per year','$200,000',''],
+    ['Layer 2 – AI Suite','NEOAI003S','BYO AI - Advanced – Standard','Per year','$180,000',''],
+    ['Layer 2 – AI Suite','NEOAI003MD','BYO AI - Advanced – Accelerate','Per year','$240,000',''],
+    ['Layer 2 – AI Suite','NEOAI003L','BYO AI - Advanced – Performance','Per year','$360,000',''],
+    ['Layer 2 – AI Suite','NEOAI004S','BYO AI - Graph – Standard','Per year','$300,000','Requires Knowledge Graph — auto-added as a separate line item'],
+    ['Layer 2 – AI Suite','NEOAI004MD','BYO AI - Graph – Accelerate','Per year','$400,000','Requires Knowledge Graph — auto-added as a separate line item'],
+    ['Layer 2 – AI Suite','NEOAI004L','BYO AI - Graph – Performance','Per year','$600,000','Requires Knowledge Graph — auto-added as a separate line item'],
+    ['Layer 2 – AI Suite','NEOAI005S','Agentic: AI - Advanced – Standard','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOAI005MD','Agentic: AI - Advanced – Accelerate','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOAI005L','Agentic: AI - Advanced – Performance','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOSLIBS','Solutions Library – Standard','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
+    ['Layer 2 – AI Suite','NEOSLIBMD','Solutions Library – Accelerate','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
+    ['Layer 2 – AI Suite','NEOSLIBL','Solutions Library – Performance','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
     ['Layer 3 – Enhanced Capability','NRTCLGB','Nuix Discover SaaS – Active Storage','Per GB/month','$10',''],
     ['Layer 3 – Enhanced Capability','NRTCLAD','Nuix Discover SaaS – Archive Storage','Per GB/month','$2',''],
     ['Layer 3 – Enhanced Capability','NRTAIACT','Nuix Discover SaaS – Gen AI Review','Per GB/month','$5','Optional add-on to Discover SaaS · applied to active data GB'],
@@ -7777,7 +7788,7 @@ function showPricingGuide() {
           </div>
           <div class="stack-layer l1">
             <div class="stack-head"><span class="stack-num">Step 1</span><span class="stack-name">Nuix Neo Foundation</span><span class="stack-price">$155K – $800K+ / yr</span></div>
-            <div class="stack-body">Required base for every deployment. Core platform: workers, data volume, Concurrent Review users, training credits and Advantage support. Available in Light, Core and Rapid tiers.</div>
+            <div class="stack-body">Required base for every deployment. Core platform: workers, data volume, Concurrent Review users, training credits and Advantage support. Available in Standard, Accelerate and Performance tiers.</div>
           </div>
         </div>
       </div>
@@ -7794,7 +7805,7 @@ function showPricingGuide() {
         <div class="tier-cards">
           <div class="tier-card">
             <div class="tier-card-head">
-              <div><span class="tc-chip chip-light">Light</span></div>
+              <div><span class="tc-chip chip-light">Standard</span></div>
               <div class="tc-price">$155K</div>
               <div class="tc-price-sub">per year</div>
             </div>
@@ -7807,7 +7818,7 @@ function showPricingGuide() {
           </div>
           <div class="tier-card">
             <div class="tier-card-head">
-              <div><span class="tc-chip chip-core">Core</span></div>
+              <div><span class="tc-chip chip-core">Accelerate</span></div>
               <div class="tc-price">$400K</div>
               <div class="tc-price-sub">per year</div>
             </div>
@@ -7820,7 +7831,7 @@ function showPricingGuide() {
           </div>
           <div class="tier-card">
             <div class="tier-card-head">
-              <div><span class="tc-chip chip-rapid">Rapid</span></div>
+              <div><span class="tc-chip chip-rapid">Performance</span></div>
               <div class="tc-price">$800K</div>
               <div class="tc-price-sub">per year</div>
             </div>
@@ -7842,7 +7853,7 @@ function showPricingGuide() {
         <span class="collapse-icon">&#8964;</span>
       </div>
       <div class="section-body">
-        <p class="section-intro">Consumption is the same Foundation packaging as the fixed tiers — one tier SKU plus boosters — metered in TB/yr instead of workers. It suits customers who'd rather commit by data volume, particularly irregular workloads or customers early in their data programme. Tier prices match the worker-based tiers exactly; Rapid plus TB boosters covers any volume this tool quotes.</p>
+        <p class="section-intro">Consumption is the same Foundation packaging as the fixed tiers — one tier SKU plus boosters — metered in TB/yr instead of workers. It suits customers who'd rather commit by data volume, particularly irregular workloads or customers early in their data programme. Tier prices match the worker-based tiers exactly; Performance plus TB boosters covers any volume this tool quotes.</p>
 
         <div class="booster-head">How it works</div>
         <p style="font-size:13px;color:#374151;line-height:1.7;margin-bottom:16px">
@@ -7852,7 +7863,7 @@ function showPricingGuide() {
         <div class="tier-cards">
           <div class="tier-card">
             <div class="tier-card-head">
-              <div><span class="tc-chip chip-light">Light</span></div>
+              <div><span class="tc-chip chip-light">Standard</span></div>
               <div class="tc-price">$155K</div>
               <div class="tc-price-sub">per year · SKU NEO007CS</div>
             </div>
@@ -7865,7 +7876,7 @@ function showPricingGuide() {
           </div>
           <div class="tier-card">
             <div class="tier-card-head">
-              <div><span class="tc-chip chip-core">Core</span></div>
+              <div><span class="tc-chip chip-core">Accelerate</span></div>
               <div class="tc-price">$400K</div>
               <div class="tc-price-sub">per year · SKU NEO007CMD</div>
             </div>
@@ -7878,7 +7889,7 @@ function showPricingGuide() {
           </div>
           <div class="tier-card">
             <div class="tier-card-head">
-              <div><span class="tc-chip chip-rapid">Rapid</span></div>
+              <div><span class="tc-chip chip-rapid">Performance</span></div>
               <div class="tc-price">$800K</div>
               <div class="tc-price-sub">per year · SKU NEO007CL</div>
             </div>
@@ -7893,10 +7904,10 @@ function showPricingGuide() {
 
         <div class="booster-head" style="margin-top:20px">Consumption Boosters</div>
         <p style="font-size:13px;color:#374151;line-height:1.7;margin-bottom:12px">
-          TB boosters are priced at 2&times; the tier's own included effective $/TB rate (e.g. Light: $155,000 &divide; 10 TB = $15,500/TB &times; 2 = $31,000/TB) — the same right-size-the-customer principle as the worker-side boosters. Additional Concurrent User boosters reuse the same per-tier rates as the worker model.
+          TB boosters are priced at 2&times; the tier's own included effective $/TB rate (e.g. Standard: $155,000 &divide; 10 TB = $15,500/TB &times; 2 = $31,000/TB) — the same right-size-the-customer principle as the worker-side boosters. Additional Concurrent User boosters reuse the same per-tier rates as the worker model.
         </p>
         <table>
-          <thead><tr><th>Resource</th><th class="right">Light /yr</th><th class="right">Core /yr</th><th class="right">Rapid /yr</th></tr></thead>
+          <thead><tr><th>Resource</th><th class="right">Standard /yr</th><th class="right">Accelerate /yr</th><th class="right">Performance /yr</th></tr></thead>
           <tbody>
             <tr><td><strong>Additional TB</strong><div class="sub-text">SKU NEOBTBS · NEOBTBMD · NEOBTBL</div></td><td class="price-cell" style="text-align:right">$31,000</td><td class="price-cell" style="text-align:right">$20,000</td><td class="price-cell" style="text-align:right">$16,000</td></tr>
             <tr><td><strong>Additional Concurrent User</strong></td><td class="price-cell" style="text-align:right">$9,000</td><td class="price-cell" style="text-align:right">$6,000</td><td class="price-cell" style="text-align:right">$3,000</td></tr>
@@ -7917,7 +7928,7 @@ function showPricingGuide() {
       <div class="section-body">
         <p class="section-intro">Boosters add incremental capacity beyond the bundled tier. Booster unit pricing is approximately 2× the effective bundled rate — use this to right-size tier conversations rather than defaulting to boosters.</p>
         <table>
-          <thead><tr><th>Resource</th><th class="right">Light /yr</th><th class="right">Core /yr</th><th class="right">Rapid /yr</th></tr></thead>
+          <thead><tr><th>Resource</th><th class="right">Standard /yr</th><th class="right">Accelerate /yr</th><th class="right">Performance /yr</th></tr></thead>
           <tbody>
             <tr><td><strong>Additional Worker</strong></td><td class="price-cell" style="text-align:right">$25,000</td><td class="price-cell" style="text-align:right">$16,000</td><td class="price-cell" style="text-align:right">$10,000</td></tr>
             <tr><td><strong>Additional Concurrent User</strong></td><td class="price-cell" style="text-align:right">$9,000</td><td class="price-cell" style="text-align:right">$6,000</td><td class="price-cell" style="text-align:right">$3,000</td></tr>
@@ -7940,7 +7951,7 @@ function showPricingGuide() {
           <span class="incl-tag">Pre-configured Workflows</span><span class="incl-tag">Case Dashboards</span><span class="incl-tag">Compliance Reporting</span>
         </div>
         <table>
-          <thead><tr><th>Module</th><th class="right">Light</th><th class="right">Core</th><th class="right">Rapid</th></tr></thead>
+          <thead><tr><th>Module</th><th class="right">Standard</th><th class="right">Accelerate</th><th class="right">Performance</th></tr></thead>
           <tbody>
             <tr><td><strong>AI Bundle</strong><span class="incl-tag" style="background:#dcfce7;color:#166534;border-color:#86efac;margin-left:6px">Save 30%</span><div class="sub-text">Enrich + Semantic Search + Transcription + Solutions Library, one SKU · 30% below buying separately</div></td><td class="price-cell" style="text-align:right">$105,000</td><td class="price-cell" style="text-align:right">$241,500</td><td class="price-cell" style="text-align:right">$420,000</td></tr>
             <tr><td><strong>Enrich</strong><div class="sub-text">Auto-classify and enrich data with metadata and tags · includes Solutions Library</div></td><td class="price-cell" style="text-align:right">$50,000</td><td class="price-cell" style="text-align:right">$115,000</td><td class="price-cell" style="text-align:right">$200,000</td></tr>
@@ -8047,7 +8058,7 @@ function showPricingGuide() {
         <p class="section-intro">Advantage support upgrades and the Foundation and Solution Implementation Packages sit in Layer 4. Support upgrades are priced incrementally — the customer pays only the difference from their tier's included level. Advantage Hours Top Up packs, CSLT300, and CSLT301 are one-off or optional add-ons available at this layer.</p>
         <div class="booster-head">Support Upgrade (incremental from tier's included level)</div>
         <table>
-          <thead><tr><th>Upgrade to</th><th class="right">Light /yr<div class="sub-text">from Bronze</div></th><th class="right">Core /yr<div class="sub-text">from Bronze</div></th><th class="right">Rapid /yr<div class="sub-text">from Silver</div></th></tr></thead>
+          <thead><tr><th>Upgrade to</th><th class="right">Standard /yr<div class="sub-text">from Bronze</div></th><th class="right">Accelerate /yr<div class="sub-text">from Bronze</div></th><th class="right">Performance /yr<div class="sub-text">from Silver</div></th></tr></thead>
           <tbody>
             <tr><td><strong>Advantage Silver</strong></td><td class="price-cell" style="text-align:right">$30,000</td><td class="price-cell" style="text-align:right">$30,000</td><td class="price-cell" style="text-align:right;color:#6b7280;font-style:italic">Included</td></tr>
             <tr><td><strong>Advantage Gold</strong></td><td class="price-cell" style="text-align:right">$75,000</td><td class="price-cell" style="text-align:right">$75,000</td><td class="price-cell" style="text-align:right">$45,000</td></tr>
@@ -8080,7 +8091,7 @@ function showPricingGuide() {
       <div class="section-body">
         <p class="section-intro">Communicate these clearly to avoid configuration or licensing issues post-sale.</p>
         <div class="dep-row"><div class="dep-arrow">⟶</div><div><div class="dep-text"><strong>Layer 1 (Nuix Neo Foundation)</strong> is required for all other layers.</div><div class="dep-note">No AI Suite, use case, enhanced capability or consulting engagement can be sold without a Foundation tier.</div></div></div>
-        <div class="dep-row"><div class="dep-arrow">⟶</div><div><div class="dep-text"><strong>Layer 2 (AI Suite)</strong> modules require the corresponding Foundation tier or higher.</div><div class="dep-note">AI module pricing is tier-matched — a Core AI add-on requires at minimum a Core Foundation.</div></div></div>
+        <div class="dep-row"><div class="dep-arrow">⟶</div><div><div class="dep-text"><strong>Layer 2 (AI Suite)</strong> modules require the corresponding Foundation tier or higher.</div><div class="dep-note">AI module pricing is tier-matched — an Accelerate AI add-on requires at minimum an Accelerate Foundation.</div></div></div>
         <div class="dep-row"><div class="dep-arrow">⟶</div><div><div class="dep-text"><strong>Solutions Library</strong> is no longer sold or configured separately.</div><div class="dep-note">It's bundled automatically at $0 with Enrich, Semantic Search or Transcription (Layer 2) — selecting any one of those adds the matching-tier Solutions Library SKU to the quote at no charge.</div></div></div>
         <div class="dep-row"><div class="dep-arrow">⟶</div><div><div class="dep-text"><strong>Visualisation Bundle / Knowledge Graph</strong> requires Enrich (Layer 2).</div><div class="dep-note">Enrich is auto-added to the quote if not already present (or already covered by the AI Bundle) — and brings the bundled Solutions Library along with it at no extra charge.</div></div></div>
         <div class="dep-row"><div class="dep-arrow">⟶</div><div><div class="dep-text"><strong>Nuix Discover</strong> (SaaS or On-Prem) is a standalone add-on and can be positioned across all use cases.</div><div class="dep-note">Does not require a specific use case to be active.</div></div></div>
@@ -8208,9 +8219,9 @@ function showPricingGuide() {
             <div class="sb-section">
               <div class="sb-section-title">1 — Foundation Tier (required)</div>
               <div class="sb-tier-grid">
-                <div class="sb-tier-btn" data-tier="light" data-price="150000" onclick="sbSelectTier(this)">Light<div class="tb-price">$150K/yr</div></div>
-                <div class="sb-tier-btn" data-tier="core"  data-price="400000" onclick="sbSelectTier(this)">Core<div class="tb-price">$400K/yr</div></div>
-                <div class="sb-tier-btn" data-tier="rapid" data-price="800000" onclick="sbSelectTier(this)">Rapid<div class="tb-price">$800K/yr</div></div>
+                <div class="sb-tier-btn" data-tier="light" data-price="150000" onclick="sbSelectTier(this)">Standard<div class="tb-price">$150K/yr</div></div>
+                <div class="sb-tier-btn" data-tier="core"  data-price="400000" onclick="sbSelectTier(this)">Accelerate<div class="tb-price">$400K/yr</div></div>
+                <div class="sb-tier-btn" data-tier="rapid" data-price="800000" onclick="sbSelectTier(this)">Performance<div class="tb-price">$800K/yr</div></div>
               </div>
             </div>
             <!-- AI Suite -->
@@ -8731,9 +8742,9 @@ function generateOnePager() {
   // Build capability bullets — business language, no SKUs
   const tier = state.foundation.selectedTier;
   const tierLabel = {
-    light: 'Nuix NEO Light',
-    core:  'Nuix NEO Core',
-    rapid: 'Nuix NEO Rapid',
+    light: 'Nuix NEO Standard',
+    core:  'Nuix NEO Accelerate',
+    rapid: 'Nuix NEO Performance',
   }[tier] || 'Nuix NEO';
 
   const tierDesc = {

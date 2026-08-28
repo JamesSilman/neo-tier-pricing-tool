@@ -1,9 +1,9 @@
 ﻿window.PRICING_CONFIG = {
 
   foundation_tiers: {
-    light:      { name: 'NEO – Light',      price: 155000, workers: 10,  volume_tb: 50,  users: 10,  training_hours: 100,  support: 'Advantage Bronze'     },
-    core:       { name: 'NEO – Core',       price: 400000, workers: 30,  volume_tb: 150, users: 30,  training_hours: 300,  support: 'Advantage Bronze'     },
-    rapid:      { name: 'NEO – Rapid',      price: 800000, workers: 80,  volume_tb: 400, users: 80,  training_hours: 800,  support: 'Advantage Silver'     }
+    light:      { name: 'NEO – Standard',    price: 155000, workers: 10,  volume_tb: 50,  users: 10,  training_hours: 100,  support: 'Advantage Bronze'     },
+    core:       { name: 'NEO – Accelerate',  price: 400000, workers: 30,  volume_tb: 150, users: 30,  training_hours: 300,  support: 'Advantage Bronze'     },
+    rapid:      { name: 'NEO – Performance', price: 800000, workers: 80,  volume_tb: 400, users: 80,  training_hours: 800,  support: 'Advantage Silver'     }
   },
 
   foundation_boosters: {
@@ -29,9 +29,9 @@
   // boosters are priced at 2x the tier's own included effective $/TB rate. Rapid +
   // boosters cover any consumption volume this tool quotes — no ceiling tier needed.
   consumption_tiers: {
-    light: { name: 'NEO – Light (Consumption)', sku: 'NEO007CS',  price: 155000, included_tb: 10,  users: 10, training_hours: 100, support: 'Advantage Bronze', tb_booster_sku: 'NEOBTBS',   tb_booster_rate: 31000 },
-    core:  { name: 'NEO – Core (Consumption)',  sku: 'NEO007CMD', price: 400000, included_tb: 40,  users: 30, training_hours: 300, support: 'Advantage Bronze', tb_booster_sku: 'NEOBTBMD',  tb_booster_rate: 20000 },
-    rapid: { name: 'NEO – Rapid (Consumption)', sku: 'NEO007CL',  price: 800000, included_tb: 100, users: 80, training_hours: 800, support: 'Advantage Silver', tb_booster_sku: 'NEOBTBL',   tb_booster_rate: 16000 },
+    light: { name: 'NEO – Standard (Consumption)',    sku: 'NEO007CS',  price: 155000, included_tb: 10,  users: 10, training_hours: 100, support: 'Advantage Bronze', tb_booster_sku: 'NEOBTBS',   tb_booster_rate: 31000 },
+    core:  { name: 'NEO – Accelerate (Consumption)',  sku: 'NEO007CMD', price: 400000, included_tb: 40,  users: 30, training_hours: 300, support: 'Advantage Bronze', tb_booster_sku: 'NEOBTBMD',  tb_booster_rate: 20000 },
+    rapid: { name: 'NEO – Performance (Consumption)', sku: 'NEO007CL',  price: 800000, included_tb: 100, users: 80, training_hours: 800, support: 'Advantage Silver', tb_booster_sku: 'NEOBTBL',   tb_booster_rate: 16000 },
   },
 
   ai_suite_modules: {
