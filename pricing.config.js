@@ -93,7 +93,7 @@
           { key: 'm1024', sku: 'KGM005', name: '1024GB Memory', price: 229380, gb: 1024 },
         ]
       },
-      ecc:               { name: 'Enterprise Collection', description: 'Capture, process and review email, Teams, Slack and other communications data for investigations and legal matters.', pricing_model: 'per_endpoint', price_per_endpoint: 8 },
+      ecc:               { name: 'ECC (Enterprise Collection Centre)', description: 'Capture, process and review email, Teams, Slack and other communications data for investigations and legal matters.', pricing_model: 'per_endpoint', price_per_endpoint: 8 },
       legal_hold:        { name: 'Nuix Automate Legal Hold',       description: 'Initiate and manage legal holds over data within your environment, preserving custodian data for legal and regulatory matters.', pricing_model: 'per_custodian_month', price_per_custodian_month: 2 }
     },
     third_party: {

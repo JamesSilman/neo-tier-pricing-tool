@@ -3119,7 +3119,7 @@ function renderStep7() {
     state.enhancedCap.discover_onprem.selected   && 'Discover On-Prem',
     state.enhancedCap.adaptive_security.selected && 'Adaptive Security',
     state.visualisation.selected && 'Knowledge Graph',
-    state.enhancedCap.ecc && state.enhancedCap.ecc.selected && 'Enterprise Collection',
+    state.enhancedCap.ecc && state.enhancedCap.ecc.selected && 'ECC (Enterprise Collection Centre)',
     state.enhancedCap.legal_hold?.selected       && 'Nuix Automate Legal Hold',
     state.enhancedCap.abbyy?.selected            && 'ABBYY OCR',
     Object.values(state.enhancedCap.q1_dynamics?.connectors||{}).some(v=>v) && 'Q1 Dynamics',
@@ -3225,7 +3225,7 @@ function renderStep7() {
     if (vb3.boosterMemQty > 0)  skuRows.push({ section: 'enhanced', sku: vb3.boosterMemTier.sku,  name: `Visualisation Bundle Booster – ${vb3.boosterMemTier.name}`,  qty: vb3.boosterMemQty,  unit: 'Per pack/yr', layer: 'enhanced', unitBaseUSD: vb3.boosterMemTier.price });
   }
   if (ec3.ecc?.selected && ec3.ecc.endpoints > 0)
-    skuRows.push({ section: 'enhanced', sku: 'ENDPT101', name: 'Enterprise Collection', qty: ec3.ecc.endpoints, unit: 'Per endpoint/yr', layer: 'enhanced', unitBaseUSD: nm3.ecc.price_per_endpoint });
+    skuRows.push({ section: 'enhanced', sku: 'ENDPT101', name: 'ECC (Enterprise Collection Centre)', qty: ec3.ecc.endpoints, unit: 'Per endpoint/yr', layer: 'enhanced', unitBaseUSD: nm3.ecc.price_per_endpoint });
   if (ec3.legal_hold?.selected && ec3.legal_hold.custodians > 0)
     skuRows.push({ section: 'enhanced', sku: 'RALH001', name: 'Nuix Automate Legal Hold', qty: ec3.legal_hold.custodians, unit: 'Per custodian/month ×12', layer: 'enhanced', unitBaseUSD: nm3.legal_hold.price_per_custodian_month * 12 });
   if (ec3.abbyy?.selected && (ec3.abbyy.qty || 1) > 0) {
@@ -3729,7 +3729,7 @@ function buildSkuRows() {
     if (vb.boosterMemQty > 0)  rows.push({ sku: vb.boosterMemTier.sku,  name: `Visualisation Bundle Booster – ${vb.boosterMemTier.name}`,  qty: vb.boosterMemQty,  unit: 'Per pack/yr', notes: '', layer: 'enhanced', unitBaseUSD: vb.boosterMemTier.price, key: 'enh_visualisation_mem_booster', category: 'thirdParty' });
   }
   if (ec.ecc?.selected && ec.ecc.endpoints > 0)
-    rows.push({ sku: 'ENDPT101', name: 'Enterprise Collection', qty: ec.ecc.endpoints, unit: 'Per endpoint/yr', notes: '', layer: 'enhanced', unitBaseUSD: nm.ecc.price_per_endpoint, key: 'enh_ecc', category: 'nuixSoftware' });
+    rows.push({ sku: 'ENDPT101', name: 'ECC (Enterprise Collection Centre)', qty: ec.ecc.endpoints, unit: 'Per endpoint/yr', notes: '', layer: 'enhanced', unitBaseUSD: nm.ecc.price_per_endpoint, key: 'enh_ecc', category: 'nuixSoftware' });
   if (ec.legal_hold?.selected && ec.legal_hold.custodians > 0)
     rows.push({ sku: 'RALH001', name: 'Nuix Automate Legal Hold', qty: ec.legal_hold.custodians, unit: 'Per custodian/month ×12', notes: '', layer: 'enhanced', unitBaseUSD: nm.legal_hold.price_per_custodian_month * 12, key: 'enh_legalHold', category: 'nuixSoftware' });
   if (ec.abbyy?.selected && (ec.abbyy.qty || 1) > 0) {
@@ -6002,7 +6002,7 @@ function generateBudgetQuote(variant) {
     if (vb.boosterMemQty > 0)  rows.push({ sku: vb.boosterMemTier.sku,  name: `Visualisation Bundle Booster – ${vb.boosterMemTier.name}`,  qty: vb.boosterMemQty,  unit: 'Per pack/yr', layer: 'enhanced', unitBaseUSD: vb.boosterMemTier.price });
   }
   if (ec.ecc?.selected && ec.ecc.endpoints > 0)
-    rows.push({ sku: 'ENDPT101', name: 'Enterprise Collection', qty: ec.ecc.endpoints, unit: 'Per endpoint/yr', layer: 'enhanced', unitBaseUSD: nm.ecc.price_per_endpoint });
+    rows.push({ sku: 'ENDPT101', name: 'ECC (Enterprise Collection Centre)', qty: ec.ecc.endpoints, unit: 'Per endpoint/yr', layer: 'enhanced', unitBaseUSD: nm.ecc.price_per_endpoint });
   if (ec.legal_hold?.selected && ec.legal_hold.custodians > 0)
     rows.push({ sku: 'RALH001', name: 'Nuix Automate Legal Hold', qty: ec.legal_hold.custodians, unit: 'Per custodian/month ×12', layer: 'enhanced', unitBaseUSD: nm.legal_hold.price_per_custodian_month * 12 });
   if (ec.abbyy?.selected && (ec.abbyy.qty || 1) > 0) {
@@ -7197,7 +7197,7 @@ function showPriceList() {
       ['Layer 3 – Enhanced Capability','KGM003','Knowledge Graph – 256GB Memory','Per pack/yr','$86,020',''],
       ['Layer 3 – Enhanced Capability','KGM004','Knowledge Graph – 512GB Memory','Per pack/yr','$143,360',''],
       ['Layer 3 – Enhanced Capability','KGM005','Knowledge Graph – 1024GB Memory','Per pack/yr','$229,380',''],
-      ['Layer 3 – Enhanced Capability','ENDPT101','Enterprise Collection','Per endpoint/yr','$8',''],
+      ['Layer 3 – Enhanced Capability','ENDPT101','ECC (Enterprise Collection Centre)','Per endpoint/yr','$8',''],
       // Layer 3 — Third Party
       ['Layer 3 – Third Party','ABBFR002','ABBYY – 100,000 pages','Per unit/yr','$1,588',''],
       ['Layer 3 – Third Party','ABBFR003','ABBYY – 200,000 pages','Per unit/yr','$2,430',''],
@@ -7397,7 +7397,7 @@ function showSKUListPage() {
     ['Layer 3 – Enhanced Capability','ENDPT001','Adaptive Security – Endpoint','Per endpoint/yr','$20',''],
     ['Layer 3 – Enhanced Capability','ENDPTUSER','Adaptive Security – User','Per user/yr','$3,000',''],
     ['Layer 3 – Enhanced Capability','ENDPTSVR','Adaptive Security – Server','Per server/yr','$30,000',''],
-    ['Layer 3 – Enhanced Capability','ENDPT101','ECC (Electronic Communications)','Per endpoint/yr','$8',''],
+    ['Layer 3 – Enhanced Capability','ENDPT101','ECC (Enterprise Collection Centre)','Per endpoint/yr','$8',''],
     ['Layer 3 – Enhanced Capability','RALH001','Nuix Automate Legal Hold','Per custodian/month','$2',''],
     ['Layer 3 – Visualisation','VISBNDL001S','Visualisation Bundle – Small','Per bundle/yr','$95,860','10 Named Users · 64GB Memory'],
     ['Layer 3 – Visualisation','VISBNDL001MD','Visualisation Bundle – Medium','Per bundle/yr','$168,970','25 Named Users · 128GB Memory'],
@@ -7776,7 +7776,7 @@ function showPricingGuide() {
           </div>
           <div class="stack-layer l4">
             <div class="stack-head"><span class="stack-num">Step 4</span><span class="stack-name">Add Ons</span><span class="stack-price">Usage-based</span></div>
-            <div class="stack-body">Nuix modules (Discover SaaS/On-Prem, Adaptive Security, Enterprise Collection, Automate Legal Hold) and certified third-party integrations (ABBYY, Q1 Dynamics, T3K, Veritone), priced per GB, endpoint, user or connector.</div>
+            <div class="stack-body">Nuix modules (Discover SaaS/On-Prem, Adaptive Security, ECC (Enterprise Collection Centre), Automate Legal Hold) and certified third-party integrations (ABBYY, Q1 Dynamics, T3K, Veritone), priced per GB, endpoint, user or connector.</div>
           </div>
           <div class="stack-layer l3">
             <div class="stack-head"><span class="stack-num">Step 3</span><span class="stack-name">Visualisation</span><span class="stack-price">$96K – $229K / yr</span></div>
@@ -8014,7 +8014,7 @@ function showPricingGuide() {
             <tr><td style="padding-left:24px"><strong>Gen AI Review</strong> <span class="sub-text">NRTAIACT · optional add-on · active data only</span></td><td>Per GB/month</td><td class="price-cell" style="text-align:right">$5</td></tr>
             <tr><td><strong>Nuix Discover On-Prem</strong></td><td>Per instance + per user/yr</td><td class="price-cell" style="text-align:right">$30,000/instance &nbsp;·&nbsp; $2,000/user</td></tr>
             <tr><td><strong>Adaptive Security</strong></td><td>Per endpoint / user / server /yr</td><td class="price-cell" style="text-align:right">$20/endpoint &nbsp;·&nbsp; $3,000/user &nbsp;·&nbsp; $30,000/server</td></tr>
-            <tr><td><strong>Enterprise Collection</strong></td><td>Per endpoint/yr</td><td class="price-cell" style="text-align:right">$8/endpoint</td></tr>
+            <tr><td><strong>ECC (Enterprise Collection Centre)</strong></td><td>Per endpoint/yr</td><td class="price-cell" style="text-align:right">$8/endpoint</td></tr>
             <tr><td><strong>Nuix Automate Legal Hold</strong></td><td>Per custodian/month</td><td class="price-cell" style="text-align:right">$2</td></tr>
             <tr><td><strong>ABBYY OCR</strong></td><td>Per page-volume package/yr</td><td class="price-cell" style="text-align:right">$1,588 (100K) – $8,624 (1M pages)</td></tr>
             <tr><td><strong>Q1 Dynamics</strong></td><td>Per connector/yr (20 connectors available)</td><td class="price-cell" style="text-align:right">$11,060 – $53,460 / connector</td></tr>
@@ -8038,7 +8038,7 @@ function showPricingGuide() {
           <tbody>
             <tr><td class="left"><strong>Nuix Discover (SaaS or On-Prem)</strong><div class="sub-text">Review, analytics &amp; production platform</div></td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
             <tr><td class="left"><strong>Adaptive Security</strong><div class="sub-text">Endpoint, user &amp; server monitoring</div></td><td class="check">✓</td><td class="dash">—</td><td class="check">✓</td></tr>
-            <tr><td class="left"><strong>Enterprise Collection</strong><div class="sub-text">Capture &amp; review Teams, Slack, email</div></td><td class="check">✓</td><td class="check">✓</td><td class="dash">—</td></tr>
+            <tr><td class="left"><strong>ECC (Enterprise Collection Centre)</strong><div class="sub-text">Capture &amp; review Teams, Slack, email</div></td><td class="check">✓</td><td class="check">✓</td><td class="dash">—</td></tr>
             <tr><td class="left"><strong>ABBYY OCR</strong><div class="sub-text">Scanned document recognition</div></td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
             <tr><td class="left"><strong>Q1 Dynamics Connectors</strong><div class="sub-text">Enterprise system data collection</div></td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
             <tr><td class="left"><strong>T3K (Media Analysis)</strong><div class="sub-text">Image/video classification &amp; CSAM detection</div></td><td class="check">✓</td><td class="dash">—</td><td class="dash">—</td></tr>
@@ -8783,7 +8783,7 @@ function generateOnePager() {
   if (ec.discover_saas?.selected || ec.discover_onprem?.selected) inclusions.push({ icon: '&#128196;', label: 'Nuix Discover Review Platform', detail: 'Integrated document review environment for legal teams and reviewers' });
   if (ec.adaptive_security?.selected) inclusions.push({ icon: '&#128274;', label: 'Adaptive Security', detail: 'Continuous endpoint and user monitoring for insider threat and data loss prevention' });
   if (state.visualisation.selected) inclusions.push({ icon: '&#128202;', label: 'Knowledge Graph Analytics', detail: 'Visual network analysis and relationship mapping for complex investigations' });
-  if (ec.ecc?.selected) inclusions.push({ icon: '&#128172;', label: 'Electronic Communications Compliance', detail: 'Surveillance and compliance monitoring for regulated communications channels' });
+  if (ec.ecc?.selected) inclusions.push({ icon: '&#128172;', label: 'ECC (Enterprise Collection Centre)', detail: 'Capture, process and review email, Teams, Slack and other communications data for investigations and legal matters' });
   if (ec.legal_hold?.selected) inclusions.push({ icon: '&#128274;', label: 'Nuix Automate Legal Hold', detail: 'Initiate and manage legal holds over custodian data for legal and regulatory matters' });
 
   // Value highlights from ROI calc
