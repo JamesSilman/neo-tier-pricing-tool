@@ -572,6 +572,10 @@ function isGov() { return ['Gov Agency', 'Gov Law Enforcement'].includes(state.c
 
 function upgradeToTier(tier) {
   state.foundation.selectedTier = tier;
+  // Switching to a lower tier can drop the included Advantage level (e.g. Rapid→Light
+  // moves Silver→Bronze). If a selected SKU mandates a floor (Agentic: AI - Advanced →
+  // Silver), re-add the upgrade booster so the requirement can't be lost via a tier change.
+  enforceSupportFloor();
   if (state.pricingModel === 'consumption') {
     const t  = cfg().consumption_tiers[tier];
     const tb = parseFloat(state.foundation.tbPerYear) || 0;
@@ -771,29 +775,63 @@ function applyKgEnrichDependency(turningOn) {
   maybeAutoUpgradeToAiBundle();
 }
 
+// ─── Advantage support floor ─────────────────────────────────────────────────
+// Some SKUs mandate a minimum Advantage level (e.g. Agentic: AI - Advanced requires
+// Advantage Silver). These helpers are the single source of truth for that floor so it
+// can be enforced everywhere support can change: the support selector, tier switches,
+// and the AI Suite dependency logic below.
+const SUPPORT_ORDER    = { 'Advantage Bronze': 1, 'Advantage Silver': 2, 'Advantage Gold': 3 };
+const SUPPORT_KEY_NAME = { bronze: 'Advantage Bronze', silver: 'Advantage Silver', gold: 'Advantage Gold' };
+
+// The Advantage level a tier includes for free (before any upgrade booster).
+function getTierBaseSupport() {
+  const tier = state.foundation.selectedTier;
+  if (!tier) return 'Advantage Bronze';
+  const C = cfg();
+  const t = state.pricingModel === 'consumption' ? C.consumption_tiers[tier] : C.foundation_tiers[tier];
+  return t?.support || 'Advantage Bronze';
+}
+
+// Effective Advantage level = the higher of the tier's included level and any chosen upgrade.
+function getEffectiveSupportName() {
+  const base = getTierBaseSupport();
+  const boosterName = SUPPORT_KEY_NAME[state.foundation.boosters.support] || null;
+  return boosterName && SUPPORT_ORDER[boosterName] > SUPPORT_ORDER[base] ? boosterName : base;
+}
+
+// Highest minimum Advantage level required by the current selections (null if none).
+function getRequiredSupportLevel() {
+  return state.aiSuite.agenticAdvanced ? 'Advantage Silver' : null;
+}
+
+// Raise the support upgrade booster if the effective level is below a required floor.
+// Returns true if it changed the selection. Called wherever support or tier can change.
+function enforceSupportFloor() {
+  const req = getRequiredSupportLevel();
+  if (!req) return false;
+  if (SUPPORT_ORDER[getEffectiveSupportName()] >= SUPPORT_ORDER[req]) return false;
+  const keyForReq = { 'Advantage Silver': 'silver', 'Advantage Gold': 'gold' }[req];
+  if (!keyForReq) return false;
+  state.foundation.boosters.support = keyForReq;
+  state.aiSuite.supportAutoAgentic = true;
+  return true;
+}
+
 // Agentic: AI - Advanced requires Semantic Search (which brings the bundled Solutions
 // Library along) and Advantage Silver support. Auto-add/upgrade both when it's turned on,
 // and reverse those auto-changes when it's turned off — unless the user had made the same
 // choice themselves. "Requires Semantic Search" is satisfied by the AI Bundle too, since
 // the Bundle contains Semantic Search (same treatment as the Enrich/KG dependency rule).
 function applyAgenticAdvancedDependencies(turningOn) {
-  const supportOrder = { 'Advantage Bronze': 1, 'Advantage Silver': 2, 'Advantage Gold': 3 };
   if (turningOn) {
     // Semantic Search dependency (skip if the AI Bundle already covers it).
     if (!state.aiSuite.semantic && !state.aiSuite.aiBundle) {
       state.aiSuite.semantic = true;
       state.aiSuite.semanticAutoAgentic = true;
     }
-    // Advantage Silver dependency — only add a booster if the effective support level
-    // (tier base + any chosen booster) is below Silver. Rapid already includes Silver.
-    const tier = state.foundation.selectedTier;
-    const tierSupport = tier ? (cfg().foundation_tiers[tier]?.support || 'Advantage Bronze') : 'Advantage Bronze';
-    const boosterName = { bronze: 'Advantage Bronze', silver: 'Advantage Silver', gold: 'Advantage Gold' }[state.foundation.boosters.support] || null;
-    const effective = Math.max(supportOrder[tierSupport] || 1, boosterName ? supportOrder[boosterName] : 0);
-    if (effective < supportOrder['Advantage Silver']) {
-      state.foundation.boosters.support = 'silver';
-      state.aiSuite.supportAutoAgentic = true;
-    }
+    // Advantage Silver dependency — raise support to the required floor if the effective
+    // level (tier base + any chosen booster) is below it. Rapid already includes Silver.
+    enforceSupportFloor();
   } else {
     if (state.aiSuite.semanticAutoAgentic) {
       // Only pull Semantic back off if the user hasn't since committed to it another way
@@ -2325,18 +2363,24 @@ function renderTierRecommendation() {
     { key: 'gold',   name: 'Advantage Gold',   price: getSupportIncrementalCost('gold',   t.support) }
   ].filter(o => supportOrder[o.name] > baseLevel);
 
+  // A selected SKU may mandate a minimum Advantage level (Agentic: AI - Advanced → Silver).
+  // Lock any option that would drop effective support below that floor.
+  const supFloor   = getRequiredSupportLevel();
+  const noneLocked = !!supFloor && supportOrder[t.support] < supportOrder[supFloor];
+
   const supportHtml = supportOpts.length ? `
     <div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.15)">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;opacity:0.65;margin-bottom:10px">Support upgrade <span style="font-weight:400;opacity:0.7">(optional)</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <div class="support-opt ${!bst.support ? 'active' : ''}" data-support="none" style="cursor:pointer;padding:8px 14px;border-radius:8px;border:1.5px solid rgba(255,255,255,${!bst.support ? '0.5' : '0.2'});background:rgba(255,255,255,${!bst.support ? '0.15' : '0.05'});font-size:12px;font-weight:600;color:#fff">
-          Keep included<br><span style="font-weight:400;opacity:0.65">${t.support}</span>
+        <div class="support-opt ${!bst.support ? 'active' : ''}" ${noneLocked ? `data-support-locked="1" title="${supFloor} is required by Agentic: AI - Advanced and can't be reduced."` : 'data-support="none"'} style="cursor:${noneLocked ? 'not-allowed' : 'pointer'};opacity:${noneLocked ? '0.4' : '1'};padding:8px 14px;border-radius:8px;border:1.5px solid rgba(255,255,255,${!bst.support ? '0.5' : '0.2'});background:rgba(255,255,255,${!bst.support ? '0.15' : '0.05'});font-size:12px;font-weight:600;color:#fff">
+          ${noneLocked ? '🔒 ' : ''}Keep included<br><span style="font-weight:400;opacity:0.65">${t.support}</span>
         </div>
-        ${supportOpts.map(o => `
-        <div class="support-opt ${bst.support === o.key ? 'active' : ''}" data-support="${o.key}" style="cursor:pointer;padding:8px 14px;border-radius:8px;border:1.5px solid rgba(255,255,255,${bst.support === o.key ? '0.5' : '0.2'});background:rgba(255,255,255,${bst.support === o.key ? '0.15' : '0.05'});font-size:12px;font-weight:600;color:#fff">
+        ${supportOpts.map(o => { const oLocked = !!supFloor && supportOrder[o.name] < supportOrder[supFloor]; return `
+        <div class="support-opt ${bst.support === o.key ? 'active' : ''}" ${oLocked ? 'data-support-locked="1" title="Below the required Advantage level."' : `data-support="${o.key}"`} style="cursor:${oLocked ? 'not-allowed' : 'pointer'};opacity:${oLocked ? '0.4' : '1'};padding:8px 14px;border-radius:8px;border:1.5px solid rgba(255,255,255,${bst.support === o.key ? '0.5' : '0.2'});background:rgba(255,255,255,${bst.support === o.key ? '0.15' : '0.05'});font-size:12px;font-weight:600;color:#fff">
           ${o.name}<br><span style="font-weight:400;opacity:0.65">+${fmt(o.price * discFactor)} / yr</span>
-        </div>`).join('')}
+        </div>`; }).join('')}
       </div>
+      ${supFloor ? `<div style="margin-top:10px;font-size:11px;font-weight:600;color:#fde68a">🔒 ${supFloor} required by Agentic: AI - Advanced</div>` : ''}
     </div>` : '';
 
   const trainingHtml = `
@@ -2518,6 +2562,11 @@ function renderStepAdvantage() {
     { key: 'gold',   name: 'Advantage Gold',   price: getSupportIncrementalCost('gold',   baseSupport) }
   ].filter(o => supportOrder[o.name] > baseLevel);
 
+  // A selected SKU may mandate a minimum Advantage level (Agentic: AI - Advanced → Silver).
+  // Lock any option that would drop effective support below that floor.
+  const supFloor   = getRequiredSupportLevel();
+  const noneLocked = !!supFloor && supportOrder[baseSupport] < supportOrder[supFloor];
+
   const trainingRate = b ? b.training_hour : 0;
   const byoAIPacks   = ['agenticBYOAI', 'byoAIAdvanced', 'byoAIGraph'].some(k => state.aiSuite[k]) ? 7 : 0;
   const implPkg      = state.advantageServices.implementationPackage;
@@ -2558,14 +2607,15 @@ function renderStepAdvantage() {
       ${supportOpts.length ? `
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#6b7280;margin-bottom:14px">Support Upgrade <span style="font-weight:400">(optional)</span></div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <div class="support-opt ${!bst.support ? 'adv-opt-active' : 'adv-opt'}" data-support="none" style="cursor:pointer;padding:10px 16px;border-radius:10px;border:1.5px solid ${!bst.support ? '#003080' : '#e5e7eb'};background:${!bst.support ? '#eff6ff' : '#f9fafb'};font-size:13px;font-weight:600;color:${!bst.support ? '#003080' : '#374151'}">
-            Keep included<br><span style="font-weight:400;font-size:12px;opacity:0.65">${baseSupport}</span>
+          <div class="support-opt ${!bst.support ? 'adv-opt-active' : 'adv-opt'}" ${noneLocked ? `data-support-locked="1" title="${supFloor} is required by Agentic: AI - Advanced and can't be reduced."` : 'data-support="none"'} style="cursor:${noneLocked ? 'not-allowed' : 'pointer'};opacity:${noneLocked ? '0.45' : '1'};padding:10px 16px;border-radius:10px;border:1.5px solid ${!bst.support ? '#003080' : '#e5e7eb'};background:${!bst.support ? '#eff6ff' : '#f9fafb'};font-size:13px;font-weight:600;color:${!bst.support ? '#003080' : '#374151'}">
+            ${noneLocked ? '🔒 ' : ''}Keep included<br><span style="font-weight:400;font-size:12px;opacity:0.65">${baseSupport}</span>
           </div>
-          ${supportOpts.map(o => `
-          <div class="support-opt ${bst.support === o.key ? 'adv-opt-active' : 'adv-opt'}" data-support="${o.key}" style="cursor:pointer;padding:10px 16px;border-radius:10px;border:1.5px solid ${bst.support === o.key ? '#003080' : '#e5e7eb'};background:${bst.support === o.key ? '#eff6ff' : '#f9fafb'};font-size:13px;font-weight:600;color:${bst.support === o.key ? '#003080' : '#374151'}">
+          ${supportOpts.map(o => { const oLocked = !!supFloor && supportOrder[o.name] < supportOrder[supFloor]; return `
+          <div class="support-opt ${bst.support === o.key ? 'adv-opt-active' : 'adv-opt'}" ${oLocked ? 'data-support-locked="1" title="Below the required Advantage level."' : `data-support="${o.key}"`} style="cursor:${oLocked ? 'not-allowed' : 'pointer'};opacity:${oLocked ? '0.45' : '1'};padding:10px 16px;border-radius:10px;border:1.5px solid ${bst.support === o.key ? '#003080' : '#e5e7eb'};background:${bst.support === o.key ? '#eff6ff' : '#f9fafb'};font-size:13px;font-weight:600;color:${bst.support === o.key ? '#003080' : '#374151'}">
             ${o.name}<br><span style="font-weight:400;font-size:12px;color:#6b7280">+${fmt(o.price * discFactor)} / yr</span>
-          </div>`).join('')}
-        </div>` : `
+          </div>`; }).join('')}
+        </div>
+        ${supFloor ? `<div style="margin-top:10px;font-size:12px;font-weight:600;color:#166534;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:8px 12px">🔒 ${supFloor} is required by Agentic: AI - Advanced and can't be reduced.</div>` : ''}` : `
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#6b7280;margin-bottom:14px">Support Upgrade</div>
         <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:12px 16px;font-size:13px;font-weight:600;color:#166534">
           ✓ ${baseSupport} — highest support level included in your tier
@@ -4690,6 +4740,14 @@ function bindBoosterEvents() {
   document.querySelectorAll('[data-support]').forEach(opt => {
     opt.addEventListener('click', () => {
       const key = opt.dataset.support;
+      // Hard block: refuse any selection that would drop the effective Advantage level
+      // below a required floor (e.g. Agentic: AI - Advanced requires Silver). The locked
+      // option is also greyed out in the UI; this is the belt-and-braces guard.
+      const req = getRequiredSupportLevel();
+      if (req) {
+        const targetName = key === 'none' ? getTierBaseSupport() : (SUPPORT_KEY_NAME[key] || getTierBaseSupport());
+        if (SUPPORT_ORDER[targetName] < SUPPORT_ORDER[req]) return;
+      }
       state.foundation.boosters.support = key === 'none' ? null : key;
       if (isAdvantageStep) {
         showStep(state.currentStep, true);
