@@ -6903,6 +6903,38 @@ function showPriceList() {
 
 <script>
   const D = ${CONFIG_JSON};
+
+  // SKU codes for the rows below. Consumption tiers, Knowledge Graph, ABBYY and Q1
+  // already carry their SKUs in D (from pricing.config.js); the rest are mapped here
+  // from the master SKU catalogue (same codes as the SKU List page).
+  const SKU = {
+    foundation:    { light: 'NEO007S',  core: 'NEO007MD', rapid: 'NEO007L' },
+    consumption:   { light: 'NEO007CS', core: 'NEO007CMD', rapid: 'NEO007CL' },
+    consumptionTb: { light: 'NEOBTBS',  core: 'NEOBTBMD', rapid: 'NEOBTBL' },
+    worker:        { light: 'NEOBWS',   core: 'NEOBWMD',  rapid: 'NEOBWL' },
+    volume:        { light: 'NEO-BOOST-VOL-L', core: 'NEO-BOOST-VOL-C', rapid: 'NEO-BOOST-VOL-R' },
+    user:          { light: 'NEOBRS',   core: 'NEOBRMD',  rapid: 'NEOBRL' },
+    support:       { bronze: 'CSLT101U', silver: 'CSLT102U', gold: 'CSLT103U' },
+    ai: {
+      ai_bundle:        { light: 'NEOAIBNDL01S', core: 'NEOAIBNDL01MD', rapid: 'NEOAIBNDL01L' },
+      enrich:           { light: 'NEOAI001S', core: 'NEOAI001MD', rapid: 'NEOAI001L' },
+      semantic:         { light: 'NEOS001S',  core: 'NEOS001MD',  rapid: 'NEOS001L' },
+      transcription:    { light: 'NEOS002S',  core: 'NEOS002MD',  rapid: 'NEOS002L' },
+      agentic_byo_ai:   { light: 'NEOAI002S', core: 'NEOAI002MD', rapid: 'NEOAI002L' },
+      byo_ai_advanced:  { light: 'NEOAI003S', core: 'NEOAI003MD', rapid: 'NEOAI003L' },
+      byo_ai_graph:     { light: 'NEOAI004S', core: 'NEOAI004MD', rapid: 'NEOAI004L' },
+      agentic_advanced: { light: 'NEOAI005S', core: 'NEOAI005MD', rapid: 'NEOAI005L' }
+    },
+    solution_pack: { light: 'NEOSLIBS', core: 'NEOSLIBMD', rapid: 'NEOSLIBL' },
+    nm: {
+      discover_saas:     { active: 'NRTCLGB', archive: 'NRTCLAD' },
+      discover_onprem:   { instance: 'NRTOPINST', user: 'NRTOPUSER' },
+      adaptive_security: { endpoint: 'ENDPT001', user: 'ENDPTUSER', server: 'ENDPTSVR' },
+      ecc:               'ENDPT101',
+      legal_hold:        'RALH001'
+    }
+  };
+
   let isGov = false, factor = 1, curSym = '$';
 
   function setGov(v) {
@@ -6979,13 +7011,13 @@ function showPriceList() {
     '<tr>' + lbl(t.name, t.key === 'light' ? '10 workers · 10 users · 100 training credits · Advantage Bronze'
                         : t.key === 'core'  ? '30 workers · 30 users · 300 training credits · Advantage Bronze'
                         :                     '80 workers · 80 users · 800 training credits · Advantage Silver')
-    + pc(inp(t.price, 'foundation_tiers.' + t.key + '.price', '/ yr')) + '</tr>'
+    + pc(inp(t.price, 'foundation_tiers.' + t.key + '.price', '/ yr · ' + SKU.foundation[t.key])) + '</tr>'
   ).join(''));
 
   // Consumption model — same tier pricing, metered in TB instead of workers
   html += sect('Foundation Tiers (Consumption)', null, D.consTiers.map(t =>
     '<tr>' + lbl(t.name, t.included_tb + ' TB · ' + t.users + ' users · ' + t.training_hours + ' training credits')
-    + pc(inp(t.price, 'consumption_tiers.' + t.key + '.price', '/ yr')) + '</tr>'
+    + pc(inp(t.price, 'consumption_tiers.' + t.key + '.price', '/ yr · ' + SKU.consumption[t.key])) + '</tr>'
   ).join(''));
 
   // Boosters
@@ -6993,9 +7025,9 @@ function showPriceList() {
     '<th>Tier</th><th>Worker</th><th>Volume (TB)</th><th>User</th><th>Training Credit</th>',
     D.boost.map(r =>
       '<tr>' + lbl(r.name, '')
-      + pc(inp(r.b.worker,        'foundation_boosters.' + r.key + '.worker',        '/worker'))
-      + pc(inp(r.b.volume_tb,     'foundation_boosters.' + r.key + '.volume_tb',     '/TB'))
-      + pc(inp(r.b.user,          'foundation_boosters.' + r.key + '.user',          '/user'))
+      + pc(inp(r.b.worker,        'foundation_boosters.' + r.key + '.worker',        '/worker · ' + SKU.worker[r.key]))
+      + pc(inp(r.b.volume_tb,     'foundation_boosters.' + r.key + '.volume_tb',     '/TB · ' + SKU.volume[r.key]))
+      + pc(inp(r.b.user,          'foundation_boosters.' + r.key + '.user',          '/user · ' + SKU.user[r.key]))
       + pc(inp(r.b.training_hour, 'foundation_boosters.' + r.key + '.training_hour', '/credit'))
       + '</tr>'
     ).join(''));
@@ -7005,14 +7037,14 @@ function showPriceList() {
     '<th>Tier</th><th>Additional TB</th>',
     D.consTiers.map(t =>
       '<tr>' + lbl(t.name, '')
-      + pc(inp(t.tb_booster_rate, 'consumption_tiers.' + t.key + '.tb_booster_rate', '/TB'))
+      + pc(inp(t.tb_booster_rate, 'consumption_tiers.' + t.key + '.tb_booster_rate', '/TB · ' + SKU.consumptionTb[t.key]))
       + '</tr>'
     ).join(''));
 
   // Advantage & Implementation
   html += sect('Layer 4 — Advantage & Implementation', null, [
     ...D.support.map(s =>
-      '<tr>' + lbl(s.name, s.desc) + pc(inp(s.price, 'support_booster_prices.' + s.key, '/ yr')) + '</tr>'
+      '<tr>' + lbl(s.name, s.desc) + pc(inp(s.price, 'support_booster_prices.' + s.key, '/ yr · ' + SKU.support[s.key])) + '</tr>'
     ),
     '<tr>' + lbl('Nuix Advantage Top-Up 24 (CSLT107)', 'Sold in packs of 24 hrs · all tiers')
       + pc('<div class="pfield"><div class="pv" data-usd="280" data-suf="/hr"><span class="adj-val">$280</span><span class="suf-val"> /hr</span></div></div>')
@@ -7030,7 +7062,7 @@ function showPriceList() {
     '<th>Module</th>' + D.tiers.map(t => '<th>' + t.name + '</th>').join(''),
     D.ai.map(m =>
       '<tr>' + lbl(m.name, '') + D.tiers.map((t, i) =>
-        pc(inp(m.prices[i], 'ai_suite_modules.' + m.key + '.price.' + t.key, '/yr'))
+        pc(inp(m.prices[i], 'ai_suite_modules.' + m.key + '.price.' + t.key, '/yr · ' + SKU.ai[m.key][t.key]))
       ).join('') + '</tr>'
     ).join(''));
 
@@ -7039,7 +7071,7 @@ function showPriceList() {
     '<th>Module</th>' + D.tiers.map(t => '<th>' + t.name + '</th>').join(''),
     D.uc.map(m =>
       '<tr>' + lbl(m.name, m.desc) + D.tiers.map((t, i) =>
-        pc(inp(m.prices[i], 'use_case_modules.' + m.key + '.price.' + t.key, '/yr'))
+        pc(inp(m.prices[i], 'use_case_modules.' + m.key + '.price.' + t.key, '/yr · ' + SKU.solution_pack[t.key]))
       ).join('') + '</tr>'
     ).join(''));
 
@@ -7047,29 +7079,29 @@ function showPriceList() {
   const nm = D.nm;
   html += sect('Enhanced Capabilities — Nuix Modules', null, [
     '<tr>' + lbl(nm.discover_saas.name, nm.discover_saas.desc)
-      + pc(inp(nm.discover_saas.active_gb_month,  'enhanced_capabilities.nuix_modules.discover_saas.active_gb_month',  '/GB/mo active')
-        + inp(nm.discover_saas.archive_gb_month,  'enhanced_capabilities.nuix_modules.discover_saas.archive_gb_month', '/GB/mo archive'))
+      + pc(inp(nm.discover_saas.active_gb_month,  'enhanced_capabilities.nuix_modules.discover_saas.active_gb_month',  '/GB/mo active · ' + SKU.nm.discover_saas.active)
+        + inp(nm.discover_saas.archive_gb_month,  'enhanced_capabilities.nuix_modules.discover_saas.archive_gb_month', '/GB/mo archive · ' + SKU.nm.discover_saas.archive))
       + '</tr>',
     '<tr>' + lbl(nm.discover_onprem.name, nm.discover_onprem.desc)
-      + pc(inp(nm.discover_onprem.price_per_instance, 'enhanced_capabilities.nuix_modules.discover_onprem.price_per_instance', '/instance/yr')
-        + inp(nm.discover_onprem.price_per_user,      'enhanced_capabilities.nuix_modules.discover_onprem.price_per_user',     '/user/yr'))
+      + pc(inp(nm.discover_onprem.price_per_instance, 'enhanced_capabilities.nuix_modules.discover_onprem.price_per_instance', '/instance/yr · ' + SKU.nm.discover_onprem.instance)
+        + inp(nm.discover_onprem.price_per_user,      'enhanced_capabilities.nuix_modules.discover_onprem.price_per_user',     '/user/yr · ' + SKU.nm.discover_onprem.user))
       + '</tr>',
     '<tr>' + lbl(nm.adaptive_security.name, nm.adaptive_security.desc)
-      + pc(inp(nm.adaptive_security.price_per_endpoint, 'enhanced_capabilities.nuix_modules.adaptive_security.price_per_endpoint', '/endpoint')
-        + inp(nm.adaptive_security.price_per_user,      'enhanced_capabilities.nuix_modules.adaptive_security.price_per_user',     '/user/yr')
-        + inp(nm.adaptive_security.price_per_server,    'enhanced_capabilities.nuix_modules.adaptive_security.price_per_server',   '/server/yr'))
+      + pc(inp(nm.adaptive_security.price_per_endpoint, 'enhanced_capabilities.nuix_modules.adaptive_security.price_per_endpoint', '/endpoint · ' + SKU.nm.adaptive_security.endpoint)
+        + inp(nm.adaptive_security.price_per_user,      'enhanced_capabilities.nuix_modules.adaptive_security.price_per_user',     '/user/yr · ' + SKU.nm.adaptive_security.user)
+        + inp(nm.adaptive_security.price_per_server,    'enhanced_capabilities.nuix_modules.adaptive_security.price_per_server',   '/server/yr · ' + SKU.nm.adaptive_security.server))
       + '</tr>',
     '<tr>' + lbl(nm.linkurious.name + ' — Named Users', nm.linkurious.desc)
-      + pc(nm.linkurious.user_tiers.map(t => inp(t.price, '', '/' + t.name)).join(''))
+      + pc(nm.linkurious.user_tiers.map(t => inp(t.price, '', '/' + t.name + ' · ' + t.sku)).join(''))
       + '</tr>',
     '<tr>' + lbl(nm.linkurious.name + ' — Memory', '')
-      + pc(nm.linkurious.memory_tiers.map(t => inp(t.price, '', '/' + t.name)).join(''))
+      + pc(nm.linkurious.memory_tiers.map(t => inp(t.price, '', '/' + t.name + ' · ' + t.sku)).join(''))
       + '</tr>',
     '<tr>' + lbl(nm.ecc.name, nm.ecc.desc)
-      + pc(inp(nm.ecc.price_per_endpoint, 'enhanced_capabilities.nuix_modules.ecc.price_per_endpoint', '/endpoint/yr'))
+      + pc(inp(nm.ecc.price_per_endpoint, 'enhanced_capabilities.nuix_modules.ecc.price_per_endpoint', '/endpoint/yr · ' + SKU.nm.ecc))
       + '</tr>',
     '<tr>' + lbl(nm.legal_hold.name, nm.legal_hold.desc)
-      + pc(inp(nm.legal_hold.price_per_custodian_month, 'enhanced_capabilities.nuix_modules.legal_hold.price_per_custodian_month', '/custodian/month'))
+      + pc(inp(nm.legal_hold.price_per_custodian_month, 'enhanced_capabilities.nuix_modules.legal_hold.price_per_custodian_month', '/custodian/month · ' + SKU.nm.legal_hold))
       + '</tr>'
   ].join(''));
 
@@ -7085,17 +7117,17 @@ function showPriceList() {
       + '</tr>'
     ),
     '<tr>' + lbl(tp.t3k.name, tp.t3k.description)
-      + pc(inp(tp.t3k.price_per_instance, 'enhanced_capabilities.third_party.t3k.price_per_instance', '/connector')
-        + inp(tp.t3k.price_per_worker,    'enhanced_capabilities.third_party.t3k.price_per_worker',   '/worker'))
+      + pc(inp(tp.t3k.price_per_instance, 'enhanced_capabilities.third_party.t3k.price_per_instance', '/connector · T3KCON001')
+        + inp(tp.t3k.price_per_worker,    'enhanced_capabilities.third_party.t3k.price_per_worker',   '/worker · T3KCORE001'))
       + '</tr>',
-    '<tr><td colspan="2" style="padding:2px 16px 2px 32px;font-size:11px;color:#9ca3af">T3K TB tiers (USD): 10TB $32,000 · 30TB $68,000 · 50TB $90,000 · 100TB $120,000 · 150TB $154,000</td></tr>',
-    '<tr><td colspan="2" style="padding:2px 16px 8px 32px;font-size:11px;color:#9ca3af">T3K user tiers (USD): 10 users $20,440 · 15 $26,040 · 20 $29,120 · 30 $37,800 · 50 $53,200</td></tr>',
+    '<tr><td colspan="2" style="padding:2px 16px 2px 32px;font-size:11px;color:#9ca3af">T3K TB tiers (USD): 10TB $32,000 (T3KCORETB10) · 30TB $68,000 (T3KCORETB30) · 50TB $90,000 (T3KCORETB50) · 100TB $120,000 (T3KCORETB100) · 150TB $154,000 (T3KCORETB150)</td></tr>',
+    '<tr><td colspan="2" style="padding:2px 16px 8px 32px;font-size:11px;color:#9ca3af">T3K user tiers (USD): 10 users $20,440 (T3KCOREUR10) · 15 $26,040 (T3KCOREUR15) · 20 $29,120 (T3KCOREUR20) · 30 $37,800 (T3KCOREUR30) · 50 $53,200 (T3KCOREUR50)</td></tr>',
     '<tr>' + lbl(tp.veritone.name, tp.veritone.description)
-      + pc(inp(tp.veritone.price_per_instance,        'enhanced_capabilities.third_party.veritone.price_per_instance',        '/connector')
-        + inp(tp.veritone.price_first_language,       'enhanced_capabilities.third_party.veritone.price_first_language',      '/1st lang')
-        + inp(tp.veritone.price_additional_language,  'enhanced_capabilities.third_party.veritone.price_additional_language', '/add. lang'))
+      + pc(inp(tp.veritone.price_per_instance,        'enhanced_capabilities.third_party.veritone.price_per_instance',        '/connector · VERTSCPCON2')
+        + inp(tp.veritone.price_first_language,       'enhanced_capabilities.third_party.veritone.price_first_language',      '/1st lang · VERTSLTLAN1')
+        + inp(tp.veritone.price_additional_language,  'enhanced_capabilities.third_party.veritone.price_additional_language', '/add. lang · VERTSLTLANS'))
       + '</tr>',
-    '<tr><td colspan="2" style="padding:2px 16px 8px 32px;font-size:11px;color:#9ca3af">Veritone transcription tiers (USD): 15K hrs $33,010 · 40K $82,500 · 67K $132,000 · 135K $220,000</td></tr>',
+    '<tr><td colspan="2" style="padding:2px 16px 8px 32px;font-size:11px;color:#9ca3af">Veritone transcription tiers (USD): 15K hrs $33,010 (VERTSCPSML) · 40K $82,500 (VERTSCPMED) · 67K $132,000 (VERTSCPLRG) · 135K $220,000 (VERTSCPXLG)</td></tr>',
     '<tr>' + lbl(tp.q1_dynamics.name, tp.q1_dynamics.description + ' — individual connector prices below')
       + pc('<span style="font-size:12px;color:#6b7280">See connectors</span>')
       + '</tr>',
@@ -7110,218 +7142,6 @@ function showPriceList() {
   document.getElementById('content').innerHTML = html;
   refresh();
 
-  function showSKUList() {
-    const skuWin = window.open('', '_skuList');
-    const skuRows = [
-      // Layer 1 — Nuix Neo Foundation
-      ['Layer 1 – Nuix Neo Foundation','NEO007S','Nuix Neo Foundation – Standard','Per year','$155,000','10 workers · 50TB · 10 users · 100 training hrs · Advantage Bronze'],
-      ['Layer 1 – Nuix Neo Foundation','NEO007MD','Nuix Neo Foundation – Accelerate','Per year','$400,000','30 workers · 150TB · 30 users · 300 training hrs · Advantage Bronze'],
-      ['Layer 1 – Nuix Neo Foundation','NEO007L','Nuix Neo Foundation – Performance','Per year','$800,000','80 workers · 400TB · 80 users · 800 training hrs · Advantage Silver'],
-      // Layer 1 — Nuix Neo Foundation (Consumption)
-      ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CS','Nuix Neo Foundation – Standard (Consumption)','Per year','$155,000','10TB · 10 users · 100 training hrs · Advantage Bronze'],
-      ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CMD','Nuix Neo Foundation – Accelerate (Consumption)','Per year','$400,000','40TB · 30 users · 300 training hrs · Advantage Bronze'],
-      ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CL','Nuix Neo Foundation – Performance (Consumption)','Per year','$800,000','100TB · 80 users · 800 training hrs · Advantage Silver'],
-      // Foundation boosters
-      ['Layer 1 – Foundation Booster','NEOBWS','Additional Worker – Standard','Per worker/yr','$25,000',''],
-      ['Layer 1 – Foundation Booster','NEOBWMD','Additional Worker – Accelerate','Per worker/yr','$16,000',''],
-      ['Layer 1 – Foundation Booster','NEOBWL','Additional Worker – Performance','Per worker/yr','$10,000',''],
-      ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-L','Additional Volume – Standard','Per TB/yr','$6,000',''],
-      ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-C','Additional Volume – Accelerate','Per TB/yr','$5,333',''],
-      ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-R','Additional Volume – Performance','Per TB/yr','$4,000',''],
-      ['Layer 1 – Foundation Booster','NEOBRS','Additional Concurrent User – Standard','Per user/yr','$9,000',''],
-      ['Layer 1 – Foundation Booster','NEOBRMD','Additional Concurrent User – Accelerate','Per user/yr','$6,000',''],
-      ['Layer 1 – Foundation Booster','NEOBRL','Additional Concurrent User – Performance','Per user/yr','$3,000',''],
-      // Foundation boosters (Consumption)
-      ['Layer 1 – Foundation Booster (Consumption)','NEOBTBS','Additional TB – Standard (Consumption)','Per TB/yr','$31,000',''],
-      ['Layer 1 – Foundation Booster (Consumption)','NEOBTBMD','Additional TB – Accelerate (Consumption)','Per TB/yr','$20,000',''],
-      ['Layer 1 – Foundation Booster (Consumption)','NEOBTBL','Additional TB – Performance (Consumption)','Per TB/yr','$16,000',''],
-      // Layer 4 — Advantage & Implementation
-      ['Layer 4 – Advantage & Implementation','CSLT101U','Support Upgrade – Advantage Bronze','Per year','$30,000','Included in Standard; incremental for Accelerate/Performance'],
-      ['Layer 4 – Advantage & Implementation','CSLT102U','Support Upgrade – Advantage Silver','Per year','$60,000','$30,000 incremental from Bronze'],
-      ['Layer 4 – Advantage & Implementation','CSLT103U','Support Upgrade – Advantage Gold','Per year','$105,000','$75,000 from Bronze · $45,000 from Silver'],
-      ['Layer 4 – Advantage & Implementation','CSLT101F','Advantage Bronze','Per year','$0','Included with Foundation tier'],
-      ['Layer 4 – Advantage & Implementation','CSLT102F','Advantage Silver','Per year','$0','Included with Foundation tier'],
-      ['Layer 4 – Advantage & Implementation','CSLT103F','Advantage Gold','Per year','$0','Included with Foundation tier'],
-      ['Layer 4 – Advantage & Implementation','TRNNEO001','Training Credits','Per year','$0','Included with Foundation tier — 100/300/800 credits by tier'],
-      ['Layer 4 – Advantage & Implementation','CSLT107','Nuix Advantage - Top Up 24 Hours','Per hour','$280','Sold in packs of 24 hrs'],
-      ['Layer 4 – Advantage & Implementation','CSLT300','Nuix Neo Foundation Implementation Package','Per instance','$31,310','One-off · Year 1 only for multi-year deals'],
-      ['Layer 4 – Advantage & Implementation','CSLT301','Nuix Neo Solution Implementation Package','Per instance','$46,020','One-off · Year 1 only for multi-year deals'],
-      // Layer 2 — AI Suite
-      ['Layer 2 – AI Suite','NEOAIBNDL01S','AI Bundle – Standard','Per year','$105,000','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
-      ['Layer 2 – AI Suite','NEOAIBNDL01MD','AI Bundle – Accelerate','Per year','$241,500','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
-      ['Layer 2 – AI Suite','NEOAIBNDL01L','AI Bundle – Performance','Per year','$420,000','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
-      ['Layer 2 – AI Suite','NEOAI001S','Enrich – Standard','Per year','$50,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOAI001MD','Enrich – Accelerate','Per year','$115,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOAI001L','Enrich – Performance','Per year','$200,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOS001S','Semantic Search – Standard','Per year','$50,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOS001MD','Semantic Search – Accelerate','Per year','$115,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOS001L','Semantic Search – Performance','Per year','$200,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOS002S','Transcription – Standard','Per year','$50,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOS002MD','Transcription – Accelerate','Per year','$115,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOS002L','Transcription – Performance','Per year','$200,000','Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOAI002S','BYO AI – Standard','Per year','$100,000',''],
-      ['Layer 2 – AI Suite','NEOAI002MD','BYO AI – Accelerate','Per year','$135,000',''],
-      ['Layer 2 – AI Suite','NEOAI002L','BYO AI – Performance','Per year','$200,000',''],
-      ['Layer 2 – AI Suite','NEOAI003S','BYO AI - Advanced – Standard','Per year','$180,000',''],
-      ['Layer 2 – AI Suite','NEOAI003MD','BYO AI - Advanced – Accelerate','Per year','$240,000',''],
-      ['Layer 2 – AI Suite','NEOAI003L','BYO AI - Advanced – Performance','Per year','$360,000',''],
-      ['Layer 2 – AI Suite','NEOAI004S','BYO AI - Graph – Standard','Per year','$300,000','Requires Knowledge Graph — auto-added as a separate line item'],
-      ['Layer 2 – AI Suite','NEOAI004MD','BYO AI - Graph – Accelerate','Per year','$400,000','Requires Knowledge Graph — auto-added as a separate line item'],
-      ['Layer 2 – AI Suite','NEOAI004L','BYO AI - Graph – Performance','Per year','$600,000','Requires Knowledge Graph — auto-added as a separate line item'],
-      ['Layer 2 – AI Suite','NEOAI005S','Agentic: AI - Advanced – Standard','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOAI005MD','Agentic: AI - Advanced – Accelerate','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOAI005L','Agentic: AI - Advanced – Performance','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
-      ['Layer 2 – AI Suite','NEOSLIBS','Solutions Library – Standard','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
-      ['Layer 2 – AI Suite','NEOSLIBMD','Solutions Library – Accelerate','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
-      ['Layer 2 – AI Suite','NEOSLIBL','Solutions Library – Performance','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
-      // Layer 3 — Visualisation
-      ['Layer 3 – Visualisation','VISBNDL001S','Visualisation Bundle – Small','Per bundle/yr','$95,860','10 Named Users · 64GB Memory'],
-      ['Layer 3 – Visualisation','VISBNDL001MD','Visualisation Bundle – Medium','Per bundle/yr','$168,970','25 Named Users · 128GB Memory'],
-      ['Layer 3 – Visualisation','VISBNDL001L','Visualisation Bundle – Large','Per bundle/yr','$228,720','50 Named Users · 256GB Memory'],
-      // Layer 3 — Enhanced Capability
-      ['Layer 3 – Enhanced Capability','NRTCLGB','Nuix Discover SaaS – Active Storage','Per GB/month','$10',''],
-      ['Layer 3 – Enhanced Capability','NRTCLAD','Nuix Discover SaaS – Archive Storage','Per GB/month','$2',''],
-      ['Layer 3 – Enhanced Capability','NRTAIACT','Nuix Discover SaaS – Gen AI Review','Per GB/month','$5','Optional add-on to Discover SaaS · applied to active data GB'],
-      ['Layer 3 – Enhanced Capability','NRTOPINST','Nuix Discover On-Prem – Instance','Per instance/yr','$30,000',''],
-      ['Layer 3 – Enhanced Capability','NRTOPUSER','Nuix Discover On-Prem – User','Per user/yr','$2,000',''],
-      ['Layer 3 – Enhanced Capability','ENDPT001','Adaptive Security – Endpoint','Per endpoint/yr','$20',''],
-      ['Layer 3 – Enhanced Capability','ENDPTUSER','Adaptive Security – User','Per user/yr','$3,000',''],
-      ['Layer 3 – Enhanced Capability','ENDPTSVR','Adaptive Security – Server','Per server/yr','$30,000',''],
-      ['Layer 3 – Enhanced Capability','KGU001','Knowledge Graph – 5 Named Users','Per pack/yr','$29,730',''],
-      ['Layer 3 – Enhanced Capability','KGU002','Knowledge Graph – 20 Named Users','Per pack/yr','$83,240',''],
-      ['Layer 3 – Enhanced Capability','KGU003','Knowledge Graph – 50 Named Users','Per pack/yr','$142,700',''],
-      ['Layer 3 – Enhanced Capability','KGU004','Knowledge Graph – 100 Named Users','Per pack/yr','$214,040',''],
-      ['Layer 3 – Enhanced Capability','KGU005','Knowledge Graph – 200 Named Users','Per pack/yr','$416,200',''],
-      ['Layer 3 – Enhanced Capability','KGM001','Knowledge Graph – 64GB Memory','Per pack/yr','$36,400',''],
-      ['Layer 3 – Enhanced Capability','KGM002','Knowledge Graph – 128GB Memory','Per pack/yr','$56,000',''],
-      ['Layer 3 – Enhanced Capability','KGM003','Knowledge Graph – 256GB Memory','Per pack/yr','$86,020',''],
-      ['Layer 3 – Enhanced Capability','KGM004','Knowledge Graph – 512GB Memory','Per pack/yr','$143,360',''],
-      ['Layer 3 – Enhanced Capability','KGM005','Knowledge Graph – 1024GB Memory','Per pack/yr','$229,380',''],
-      ['Layer 3 – Enhanced Capability','ENDPT101','ECC (Enterprise Collection Centre)','Per endpoint/yr','$8',''],
-      // Layer 3 — Third Party
-      ['Layer 3 – Third Party','ABBFR002','ABBYY – 100,000 pages','Per unit/yr','$1,588',''],
-      ['Layer 3 – Third Party','ABBFR003','ABBYY – 200,000 pages','Per unit/yr','$2,430',''],
-      ['Layer 3 – Third Party','ABBFR004','ABBYY – 500,000 pages','Per unit/yr','$4,900',''],
-      ['Layer 3 – Third Party','ABBFR005','ABBYY – 1,000,000 pages','Per unit/yr','$8,624',''],
-      ['Layer 3 – Third Party','ABBFR001','ABBYY Fine Reader Server (renewal)','Per unit/yr','$4,100','Renewals only'],
-      ['Layer 3 – Third Party','Q1CNOP370','Q1 – CW Splitter','Per year','$40,180',''],
-      ['Layer 3 – Third Party','Q1CNOP400','Q1 – Cisco Webex','Per year','$20,870',''],
-      ['Layer 3 – Third Party','Q1CNOP310','Q1 – EV On-Prem','Per year','$22,570',''],
-      ['Layer 3 – Third Party','Q1CNSS320','Q1 – EV Cloud','Per year','$26,130',''],
-      ['Layer 3 – Third Party','Q1CNOP390','Q1 – IBM FileNet','Per year','$20,870',''],
-      ['Layer 3 – Third Party','Q1CNOP350','Q1 – Google Gmail','Per year','$13,250',''],
-      ['Layer 3 – Third Party','Q1CNOP340','Q1 – Google Vault','Per year','$23,800',''],
-      ['Layer 3 – Third Party','Q1CNOP330','Q1 – OpenText LL','Per year','$13,520',''],
-      ['Layer 3 – Third Party','Q1CNOP410','Q1 – OpenText TRIM','Per year','$21,460',''],
-      ['Layer 3 – Third Party','Q1CNOP300','Q1 – Source One','Per year','$13,520',''],
-      ['Layer 3 – Third Party','Q1CNOP380','Q1 – Symphony','Per year','$20,870',''],
-      ['Layer 3 – Third Party','Q1CNOP360','Q1 – Google Virtru','Per year','$23,800',''],
-      ['Layer 3 – Third Party','Q1DSOP200','Q1 – DSAR On-Prem','Per year','$41,580',''],
-      ['Layer 3 – Third Party','Q1LHOP100','Q1 – Legal Hold On-Prem','Per year','$29,400',''],
-      ['Layer 3 – Third Party','Q1DSSS210','Q1 – DSAR Hosted','Per year','$53,460',''],
-      ['Layer 3 – Third Party','Q1LHSS110','Q1 – Legal Hold Hosted','Per year','$53,460',''],
-      ['Layer 3 – Third Party','Q1SF24C7MS','Q1 – Mulesoft','Per year','$11,060',''],
-      ['Layer 3 – Third Party','Q1SF24C7TA','Q1 – Salesforce','Per year','$16,660',''],
-      ['Layer 3 – Third Party','Q1CF24C7JR','Q1 – Jira','Per year','$16,660',''],
-      ['Layer 3 – Third Party','Q1CF30T4WJ','Q1 – Confluence','Per year','$16,660',''],
-      ['Layer 3 – Third Party','T3KCON001','T3K – Nuix Connector','Per instance/yr','$22,000',''],
-      ['Layer 3 – Third Party','T3KCORE001','T3K – CORE (per worker)','Per worker/yr','$4,000','For component / worker-based deals'],
-      ['Layer 3 – Third Party','T3KCORETB10','T3K – CORE 10TB','Per unit/yr','$32,000',''],
-      ['Layer 3 – Third Party','T3KCORETB30','T3K – CORE 30TB','Per unit/yr','$68,000',''],
-      ['Layer 3 – Third Party','T3KCORETB50','T3K – CORE 50TB','Per unit/yr','$90,000',''],
-      ['Layer 3 – Third Party','T3KCORETB100','T3K – CORE 100TB','Per unit/yr','$120,000',''],
-      ['Layer 3 – Third Party','T3KCORETB150','T3K – CORE 150TB','Per unit/yr','$154,000',''],
-      ['Layer 3 – Third Party','T3KCOREUR10','T3K – CORE 10 Concurrent Users','Per unit/yr','$20,440',''],
-      ['Layer 3 – Third Party','T3KCOREUR15','T3K – CORE 15 Concurrent Users','Per unit/yr','$26,040',''],
-      ['Layer 3 – Third Party','T3KCOREUR20','T3K – CORE 20 Concurrent Users','Per unit/yr','$29,120',''],
-      ['Layer 3 – Third Party','T3KCOREUR30','T3K – CORE 30 Concurrent Users','Per unit/yr','$37,800',''],
-      ['Layer 3 – Third Party','T3KCOREUR50','T3K – CORE 50 Concurrent Users','Per unit/yr','$53,200',''],
-      ['Layer 3 – Third Party','VERTSCPCON2','Veritone – Nuix Connector','Per instance/yr','$22,000',''],
-      ['Layer 3 – Third Party','VERTSCPSML','Veritone – Transcription 15,000 hrs (Small)','Per instance/yr','$33,010',''],
-      ['Layer 3 – Third Party','VERTSCPMED','Veritone – Transcription 40,000 hrs (Medium)','Per instance/yr','$82,500',''],
-      ['Layer 3 – Third Party','VERTSCPLRG','Veritone – Transcription 67,000 hrs (Large)','Per instance/yr','$132,000',''],
-      ['Layer 3 – Third Party','VERTSCPXLG','Veritone – Transcription 135,000 hrs (X-Large)','Per instance/yr','$220,000',''],
-      ['Layer 3 – Third Party','VERTSLTLAN1','Veritone – Translation (First Language)','Per language/yr','$27,500',''],
-      ['Layer 3 – Third Party','VERTSLTLANS','Veritone – Translation (Additional Language)','Per language/yr','$5,500',''],
-    ];
-
-    const layerColors = {
-      'Layer 1 – Nuix Neo Foundation': '#003080',
-      'Layer 1 – Foundation Booster': '#004ea3',
-      'Layer 2 – AI Suite': '#0056e3',
-      'Layer 3 – Enhanced Capability': '#1a5cbf',
-      'Layer 3 – Third Party': '#2666a8',
-      'Layer 4 – Advantage & Implementation': '#0d4080',
-      'Other': '#475569',
-    };
-
-    let lastLayer = '';
-    const rowsHtml = skuRows.map(([layer, sku, name, unit, price, notes]) => {
-      const isNew = layer !== lastLayer;
-      lastLayer = layer;
-      const color = layerColors[layer] || '#333';
-      const groupRow = isNew ? \`<tr><td colspan="5" style="background:\${color};color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:7px 16px">\${layer}</td></tr>\` : '';
-      return groupRow + \`<tr>
-        <td style="font-family:monospace;font-size:12px;font-weight:700;color:#003080;white-space:nowrap;padding:10px 16px">\${sku}</td>
-        <td style="font-size:13px;font-weight:500;padding:10px 16px">\${name}</td>
-        <td style="font-size:12px;color:#6b7280;padding:10px 16px">\${unit}</td>
-        <td style="font-size:13px;font-weight:700;color:#003080;text-align:right;padding:10px 16px;white-space:nowrap">\${price}</td>
-        <td style="font-size:11px;color:#9ca3af;padding:10px 16px">\${notes}</td>
-      </tr>\`;
-    }).join('');
-
-    const skuHtml = \`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Nuix NEO — SKU List</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f6fa; color: #1a1a2e; }
-    header { background: #0056e3; padding: 0 32px; height: 60px; display: flex; align-items: center; justify-content: space-between; }
-    header h1 { color: rgba(255,255,255,0.9); font-size: 15px; font-weight: 600; }
-    .print-btn { background: rgba(255,255,255,0.15); border: 1.5px solid rgba(255,255,255,0.35); color: #fff; padding: 6px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
-    .container { max-width: 1100px; margin: 28px auto; padding: 0 24px 80px; }
-    .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden; }
-    table { width: 100%; border-collapse: collapse; }
-    thead tr { background: #f0f4ff; }
-    th { padding: 10px 16px; font-size: 11px; font-weight: 700; color: #003080; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; }
-    th:nth-child(4) { text-align: right; }
-    tbody tr { border-bottom: 1px solid #f0f2f8; }
-    tbody tr:last-child { border-bottom: none; }
-    tbody tr:hover { background: #f8f9ff; }
-    .badge { display: inline-block; font-size: 10px; font-weight: 700; background: #f0f4ff; color: #003080; border-radius: 4px; padding: 2px 6px; margin-bottom: 2px; }
-    footer { text-align: center; padding: 24px; color: #9ca3af; font-size: 12px; }
-    @media print { header .print-btn { display: none; } }
-  </style>
-</head>
-<body>
-<header>
-  <h1>Nuix NEO — Full SKU List &nbsp;·&nbsp; <span style="opacity:0.6;font-weight:400">For internal use only</span></h1>
-  <button class="print-btn" onclick="window.print()">🖨 Print / Save as PDF</button>
-</header>
-<div class="container">
-  <div class="card">
-    <table>
-      <thead>
-        <tr>
-          <th>SKU</th>
-          <th>Name</th>
-          <th>Unit</th>
-          <th style="text-align:right">List Price (USD)</th>
-          <th>Notes</th>
-        </tr>
-      </thead>
-      <tbody>\${rowsHtml}</tbody>
-    </table>
-  </div>
-</div>
-<footer>Nuix Neo Pricing Tool · \${new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })} · Prices subject to change</footer>
-</body>
-</html>\`;
-    skuWin.document.write(skuHtml);
-    skuWin.document.close();
-  }
 </script>
 </body>
 </html>`;
