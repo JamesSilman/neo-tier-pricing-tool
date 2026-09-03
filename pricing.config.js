@@ -94,7 +94,8 @@
         ]
       },
       ecc:               { name: 'ECC (Enterprise Collection Centre)', description: 'Capture, process and review email, Teams, Slack and other communications data for investigations and legal matters.', pricing_model: 'per_endpoint', price_per_endpoint: 8 },
-      legal_hold:        { name: 'Nuix Automate Legal Hold',       description: 'Initiate and manage legal holds over data within your environment, preserving custodian data for legal and regulatory matters.', pricing_model: 'per_custodian_month', price_per_custodian_month: 2 }
+      legal_hold:        { name: 'Nuix Automate Legal Hold',       description: 'Initiate and manage legal holds over data within your environment, preserving custodian data for legal and regulatory matters.', pricing_model: 'per_custodian_month', price_per_custodian_month: 2 },
+      automated_relativity: { name: 'Automated Relativity Export and Orchestration', description: 'Ability to perform automated Relativity exports and workflow orchestration as part of Automate workflows, and other advanced export functions.', pricing_model: 'flat', list_price: 75000, sku: 'NEOREL01' }
     },
     third_party: {
       abbyy: {

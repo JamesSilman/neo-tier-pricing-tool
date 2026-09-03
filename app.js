@@ -16,6 +16,7 @@ const state = {
     adaptive_security: { selected: false, endpoints: 1, users: 1, servers: 1 },
     ecc:               { selected: false, endpoints: 1 },
     legal_hold:        { selected: false, custodians: 1 },
+    automated_relativity: { selected: false },
     abbyy:         { selected: false, pkg: 'abbfr002', qty: 1 },
     q1_dynamics:   { connectors: {} },
     t3k:           { selected: false, instances: 1, pricing_mode: 'tb', tb_tier: 'tb10', user_tier: 'ur10', workers: 10 },
@@ -923,6 +924,7 @@ function calcPrices() {
   if (state.visualisation.selected) ecBase += getVisualisationBundlePricing(state.visualisation).totalBaseUSD;
   if (ec.ecc && ec.ecc.selected)                 ecBase += nm.ecc.price_per_endpoint * ec.ecc.endpoints;
   if (ec.legal_hold?.selected)                   ecBase += nm.legal_hold.price_per_custodian_month * ec.legal_hold.custodians * 12;
+  if (ec.automated_relativity?.selected)         ecBase += nm.automated_relativity.list_price;
   const tp = C.enhanced_capabilities.third_party;
   if (ec.abbyy?.selected) {
     const abbyyPkg = tp.abbyy.packages.find(p => p.key === (ec.abbyy.pkg || 'abbfr002'));
@@ -3121,6 +3123,7 @@ function renderStep7() {
     state.visualisation.selected && 'Knowledge Graph',
     state.enhancedCap.ecc && state.enhancedCap.ecc.selected && 'ECC (Enterprise Collection Centre)',
     state.enhancedCap.legal_hold?.selected       && 'Nuix Automate Legal Hold',
+    state.enhancedCap.automated_relativity?.selected && 'Automated Relativity Export and Orchestration',
     state.enhancedCap.abbyy?.selected            && 'ABBYY OCR',
     Object.values(state.enhancedCap.q1_dynamics?.connectors||{}).some(v=>v) && 'Q1 Dynamics',
     state.enhancedCap.t3k?.selected              && 'T3K (Media Analysis)',
@@ -3228,6 +3231,8 @@ function renderStep7() {
     skuRows.push({ section: 'enhanced', sku: 'ENDPT101', name: 'ECC (Enterprise Collection Centre)', qty: ec3.ecc.endpoints, unit: 'Per endpoint/yr', layer: 'enhanced', unitBaseUSD: nm3.ecc.price_per_endpoint });
   if (ec3.legal_hold?.selected && ec3.legal_hold.custodians > 0)
     skuRows.push({ section: 'enhanced', sku: 'RALH001', name: 'Nuix Automate Legal Hold', qty: ec3.legal_hold.custodians, unit: 'Per custodian/month ×12', layer: 'enhanced', unitBaseUSD: nm3.legal_hold.price_per_custodian_month * 12 });
+  if (ec3.automated_relativity?.selected)
+    skuRows.push({ section: 'enhanced', sku: 'NEOREL01', name: 'Automated Relativity Export and Orchestration', qty: 1, unit: 'Per year', layer: 'enhanced', unitBaseUSD: nm3.automated_relativity.list_price });
   if (ec3.abbyy?.selected && (ec3.abbyy.qty || 1) > 0) {
     const abbyyPkg3 = tp3.abbyy.packages.find(p3 => p3.key === (ec3.abbyy.pkg || 'abbfr002'));
     if (abbyyPkg3) skuRows.push({ section: 'enhanced', sku: abbyyPkg3.sku, name: `ABBYY – ${abbyyPkg3.name}`, qty: ec3.abbyy.qty || 1, unit: 'Per unit/yr', layer: 'enhanced', unitBaseUSD: abbyyPkg3.price });
@@ -3732,6 +3737,8 @@ function buildSkuRows() {
     rows.push({ sku: 'ENDPT101', name: 'ECC (Enterprise Collection Centre)', qty: ec.ecc.endpoints, unit: 'Per endpoint/yr', notes: '', layer: 'enhanced', unitBaseUSD: nm.ecc.price_per_endpoint, key: 'enh_ecc', category: 'nuixSoftware' });
   if (ec.legal_hold?.selected && ec.legal_hold.custodians > 0)
     rows.push({ sku: 'RALH001', name: 'Nuix Automate Legal Hold', qty: ec.legal_hold.custodians, unit: 'Per custodian/month ×12', notes: '', layer: 'enhanced', unitBaseUSD: nm.legal_hold.price_per_custodian_month * 12, key: 'enh_legalHold', category: 'nuixSoftware' });
+  if (ec.automated_relativity?.selected)
+    rows.push({ sku: 'NEOREL01', name: 'Automated Relativity Export and Orchestration', qty: 1, unit: 'Per year', notes: '', layer: 'enhanced', unitBaseUSD: nm.automated_relativity.list_price, key: 'enh_automatedRelativity', category: 'nuixSoftware' });
   if (ec.abbyy?.selected && (ec.abbyy.qty || 1) > 0) {
     const abbyyPkg = tp.abbyy.packages.find(p => p.key === (ec.abbyy.pkg || 'abbfr002'));
     if (abbyyPkg) rows.push({ sku: abbyyPkg.sku, name: `ABBYY – ${abbyyPkg.name}`, qty: ec.abbyy.qty || 1, unit: 'Per unit/yr', notes: '', layer: 'enhanced', unitBaseUSD: abbyyPkg.price, key: 'enh_abbyy', category: 'thirdParty' });
@@ -5044,6 +5051,7 @@ function generateFullQuote() {
   if (state.visualisation.selected)  { const vbSel = getVisualisationBundlePricing(state.visualisation); ecSelected.push(`Knowledge Graph — ${vbSel.bundle.name}${vbSel.boosterUserQty > 0 || vbSel.boosterMemQty > 0 ? ` (+ ${vbSel.boosterUserQty} × ${vbSel.boosterUserTier.name}, ${vbSel.boosterMemQty} × ${vbSel.boosterMemTier.name} boosters)` : ''}`); }
   if (ec.ecc && ec.ecc.selected) ecSelected.push(`${C.enhanced_capabilities.nuix_modules.ecc?.name} (${ec.ecc.endpoints} endpoint${ec.ecc.endpoints>1?'s':''})`);
   if (ec.legal_hold?.selected)       ecSelected.push(`Nuix Automate Legal Hold (${ec.legal_hold.custodians} custodian${ec.legal_hold.custodians>1?'s':''})`);
+  if (ec.automated_relativity?.selected) ecSelected.push('Automated Relativity Export and Orchestration');
   if (ec.abbyy?.selected) {
     const abbyyPkg = C.enhanced_capabilities.third_party.abbyy.packages.find(p => p.key === (ec.abbyy.pkg || 'abbfr002'));
     ecSelected.push(`ABBYY OCR (${ec.abbyy.qty || 1} × ${abbyyPkg?.name || ec.abbyy.pkg})`);
@@ -6005,6 +6013,8 @@ function generateBudgetQuote(variant) {
     rows.push({ sku: 'ENDPT101', name: 'ECC (Enterprise Collection Centre)', qty: ec.ecc.endpoints, unit: 'Per endpoint/yr', layer: 'enhanced', unitBaseUSD: nm.ecc.price_per_endpoint });
   if (ec.legal_hold?.selected && ec.legal_hold.custodians > 0)
     rows.push({ sku: 'RALH001', name: 'Nuix Automate Legal Hold', qty: ec.legal_hold.custodians, unit: 'Per custodian/month ×12', layer: 'enhanced', unitBaseUSD: nm.legal_hold.price_per_custodian_month * 12 });
+  if (ec.automated_relativity?.selected)
+    rows.push({ sku: 'NEOREL01', name: 'Automated Relativity Export and Orchestration', qty: 1, unit: 'Per year', layer: 'enhanced', unitBaseUSD: nm.automated_relativity.list_price });
   if (ec.abbyy?.selected && (ec.abbyy.qty || 1) > 0) {
     const abbyyPkg = tp.abbyy.packages.find(p => p.key === (ec.abbyy.pkg || 'abbfr002'));
     if (abbyyPkg) rows.push({ sku: abbyyPkg.sku, name: `ABBYY – ${abbyyPkg.name}`, qty: ec.abbyy.qty || 1, unit: 'Per unit/yr', layer: 'enhanced', unitBaseUSD: abbyyPkg.price });
@@ -6467,6 +6477,7 @@ function generateBundledQuote() {
     state.visualisation.selected  && (vbSum => `Knowledge Graph — ${vbSum.bundle.name}`)(getVisualisationBundlePricing(state.visualisation)),
     ...(ec.ecc && ec.ecc.selected ? [C.enhanced_capabilities.nuix_modules.ecc?.name] : []),
     ...(ec.legal_hold?.selected ? [`Nuix Automate Legal Hold (${ec.legal_hold.custodians} custodian${ec.legal_hold.custodians>1?'s':''})`] : []),
+    ...(ec.automated_relativity?.selected ? ['Automated Relativity Export and Orchestration'] : []),
     ...(ec.abbyy?.selected ? ['ABBYY OCR'] : []),
     ...(Object.values(ec.q1_dynamics?.connectors||{}).some(v=>v) ? ['Q1 Dynamics'] : []),
     ...(ec.t3k?.selected ? ['T3K (Media Analysis)'] : []),
@@ -6821,7 +6832,8 @@ function showPriceList() {
       adaptive_security: { name: nm.adaptive_security.name, desc: nm.adaptive_security.description, price_per_endpoint: nm.adaptive_security.price_per_endpoint, price_per_user: nm.adaptive_security.price_per_user, price_per_server: nm.adaptive_security.price_per_server },
       linkurious:        { name: nm.linkurious.name,        desc: nm.linkurious.description,        user_tiers: nm.linkurious.user_tiers, memory_tiers: nm.linkurious.memory_tiers },
       ecc:               { name: nm.ecc.name,               desc: nm.ecc.description,               price_per_endpoint: nm.ecc.price_per_endpoint },
-      legal_hold:        { name: nm.legal_hold.name,        desc: nm.legal_hold.description,        price_per_custodian_month: nm.legal_hold.price_per_custodian_month }
+      legal_hold:        { name: nm.legal_hold.name,        desc: nm.legal_hold.description,        price_per_custodian_month: nm.legal_hold.price_per_custodian_month },
+      automated_relativity: { name: nm.automated_relativity.name, desc: nm.automated_relativity.description, list_price: nm.automated_relativity.list_price }
     },
     tp:   C.enhanced_capabilities.third_party,
     poc:    C.poc_price_per_month,
@@ -6931,7 +6943,8 @@ function showPriceList() {
       discover_onprem:   { instance: 'NRTOPINST', user: 'NRTOPUSER' },
       adaptive_security: { endpoint: 'ENDPT001', user: 'ENDPTUSER', server: 'ENDPTSVR' },
       ecc:               'ENDPT101',
-      legal_hold:        'RALH001'
+      legal_hold:        'RALH001',
+      automated_relativity: 'NEOREL01'
     }
   };
 
@@ -7102,6 +7115,9 @@ function showPriceList() {
       + '</tr>',
     '<tr>' + lbl(nm.legal_hold.name, nm.legal_hold.desc)
       + pc(inp(nm.legal_hold.price_per_custodian_month, 'enhanced_capabilities.nuix_modules.legal_hold.price_per_custodian_month', '/custodian/month · ' + SKU.nm.legal_hold))
+      + '</tr>',
+    '<tr>' + lbl(nm.automated_relativity.name, nm.automated_relativity.desc)
+      + pc(inp(nm.automated_relativity.list_price, 'enhanced_capabilities.nuix_modules.automated_relativity.list_price', '/year · ' + SKU.nm.automated_relativity))
       + '</tr>'
   ].join(''));
 
@@ -7219,6 +7235,7 @@ function showSKUListPage() {
     ['Layer 3 – Enhanced Capability','ENDPTSVR','Adaptive Security – Server','Per server/yr','$30,000',''],
     ['Layer 3 – Enhanced Capability','ENDPT101','ECC (Enterprise Collection Centre)','Per endpoint/yr','$8',''],
     ['Layer 3 – Enhanced Capability','RALH001','Nuix Automate Legal Hold','Per custodian/month','$2',''],
+    ['Layer 3 – Enhanced Capability','NEOREL01','Automated Relativity Export and Orchestration','Per year','$75,000',''],
     ['Layer 3 – Visualisation','VISBNDL001S','Visualisation Bundle – Small','Per bundle/yr','$95,860','10 Named Users · 64GB Memory'],
     ['Layer 3 – Visualisation','VISBNDL001MD','Visualisation Bundle – Medium','Per bundle/yr','$168,970','25 Named Users · 128GB Memory'],
     ['Layer 3 – Visualisation','VISBNDL001L','Visualisation Bundle – Large','Per bundle/yr','$228,720','50 Named Users · 256GB Memory'],
@@ -8605,6 +8622,7 @@ function generateOnePager() {
   if (state.visualisation.selected) inclusions.push({ icon: '&#128202;', label: 'Knowledge Graph Analytics', detail: 'Visual network analysis and relationship mapping for complex investigations' });
   if (ec.ecc?.selected) inclusions.push({ icon: '&#128172;', label: 'ECC (Enterprise Collection Centre)', detail: 'Capture, process and review email, Teams, Slack and other communications data for investigations and legal matters' });
   if (ec.legal_hold?.selected) inclusions.push({ icon: '&#128274;', label: 'Nuix Automate Legal Hold', detail: 'Initiate and manage legal holds over custodian data for legal and regulatory matters' });
+  if (ec.automated_relativity?.selected) inclusions.push({ icon: '&#128260;', label: 'Automated Relativity Export and Orchestration', detail: 'Automated Relativity exports and workflow orchestration as part of Automate workflows, and other advanced export functions' });
 
   // Value highlights from ROI calc
   const roiRows = [];
