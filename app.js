@@ -11,8 +11,12 @@ const state = {
   aiSuite: { aiBundle: false, enrich: false, enrichManual: false, semantic: false, transcription: false, agenticBYOAI: false, byoAIAdvanced: false, byoAIGraph: false, byoGraphAutoEnrich: false, agenticAdvanced: false, semanticAutoAgentic: false, supportAutoAgentic: false },
   useCases: { secondary: [], subUseCases: [], foundationOnly: true },
   enhancedCap: {
-    discover_saas:     { selected: false, active_gb: 1, archive_gb: 1, gen_ai_review: false },
-    discover_onprem:   { selected: false, instances: 1, users: 1 },
+    discover_saas:     { selected: false, active_gb: 1, archive_gb: 1, file_transfer_gb: 0, inactive_gb: 0, eca_gb: 0,
+      audio_minutes: 0, translation_docs: 0, tfa_users: 0, excel_redaction_docs: 0,
+      gen_ai_review_mode: 'none', gen_ai_review_docs: 0 },
+    discover_onprem:   { selected: false, instances: 1, users: 1, capacity_gb: 0,
+      predictive_coding_instances: 0, ai_review_instances: 0, enrich_instances: 0,
+      ingestion_workers: 0, excel_redaction_instances: 0 },
     adaptive_security: { selected: false, endpoints: 1, users: 1, servers: 1 },
     ecc:               { selected: false, endpoints: 1 },
     legal_hold:        { selected: false, custodians: 1 },
@@ -868,6 +872,91 @@ function getAiModuleBaseUSD(stateKey, tierKey, aiSuite) {
   return cfg().ai_suite_modules[ck]?.price[tierKey] || 0;
 }
 
+// Salesforce's Discover SaaS volume-discount model: Active Data, Archive Data, File
+// Transfer Data and Inactive Data are pooled. Their combined list-price total (monthly
+// rate x 12 x contract length, with annual uplift compounding via the same
+// getContractPeriods()/getPeriodPrice() every other multi-year total in this tool uses)
+// becomes a TCV; ONE blended discount % is looked up from that TCV and applied equally
+// to all four. Nothing else in Discover SaaS (ECA, Gen AI Review, etc.) is in this pool.
+function discoverSaasVolumeDiscount(dc, nm) {
+  const monthlyList = dc.active_gb * nm.active_gb_month
+    + dc.archive_gb * nm.archive_gb_month
+    + (dc.file_transfer_gb || 0) * nm.file_transfer_gb_month
+    + (dc.inactive_gb      || 0) * nm.inactive_gb_month;
+  const annualList = monthlyList * 12;
+  const tcv = getContractPeriods().reduce((sum, p) => sum + getPeriodPrice(annualList, p), 0);
+  const tiers = nm.volume_discount_tiers;
+  let tier = tiers[0];
+  for (const t of tiers) { if (tcv >= t.threshold) tier = t; }
+  return { monthlyList, annualList, tcv, pct: tier.pct, tier };
+}
+
+// Discover SaaS is metered per GB/user/minute/document per month (annualized ×12),
+// except Excel Redaction and document-based Gen AI Review, which are billed per
+// document as entered — not a monthly rate, so no ×12.
+function discoverSaasBaseUSD(dc, nm) {
+  const df = 1 - discoverSaasVolumeDiscount(dc, nm).pct;
+  const monthly = dc.active_gb * nm.active_gb_month * df
+    + dc.archive_gb * nm.archive_gb_month * df
+    + (dc.file_transfer_gb  || 0) * nm.file_transfer_gb_month * df
+    + (dc.inactive_gb       || 0) * nm.inactive_gb_month * df
+    + (dc.eca_gb            || 0) * nm.eca_gb_month
+    + (dc.audio_minutes     || 0) * nm.audio_transcription_minute_month
+    + (dc.translation_docs  || 0) * nm.machine_translation_doc_month
+    + (dc.tfa_users         || 0) * nm.two_factor_auth_user_month
+    + (dc.gen_ai_review_mode === 'active' ? dc.active_gb * nm.gen_ai_review_per_gb : 0);
+  const oneOff = (dc.excel_redaction_docs || 0) * nm.excel_redaction_per_doc
+    + (dc.gen_ai_review_mode === 'document' ? (dc.gen_ai_review_docs || 0) * nm.gen_ai_review_per_doc : 0);
+  return monthly * 12 + oneOff;
+}
+
+// Discover On-Prem is licensed per instance/user/GB/worker per year — no monthly
+// metering, so unlike Discover SaaS none of these are annualized.
+function discoverOnpremBaseUSD(dc, nm) {
+  return nm.price_per_instance * (dc.instances || 0)
+    + nm.price_per_user * (dc.users || 0)
+    + nm.price_per_gb * (dc.capacity_gb || 0)
+    + nm.predictive_coding_per_instance * (dc.predictive_coding_instances || 0)
+    + nm.ai_review_per_instance * (dc.ai_review_instances || 0)
+    + nm.enrich_per_instance * (dc.enrich_instances || 0)
+    + nm.ingestion_per_worker * (dc.ingestion_workers || 0)
+    + nm.excel_redaction_per_instance * (dc.excel_redaction_instances || 0);
+}
+
+// Shared SKU-row builders for Discover SaaS/On-Prem, reused by every place that
+// needs to list them as line items (quote detail, SKU export, admin summary).
+function discoverSaasSkuRows(dc, nm) {
+  const rows = [];
+  const disc = discoverSaasVolumeDiscount(dc, nm);
+  const volNote = `×12/yr · ${Math.round(disc.pct * 100)}% vol. disc.`;
+  if (dc.active_gb > 0)           rows.push({ sku: 'NRTCLGB',   name: 'Nuix Discover SaaS – Active Storage',           qty: dc.active_gb,           unit: 'Per GB/month',      notes: volNote, unitBaseUSD: nm.active_gb_month * (1 - disc.pct) * 12,                     key: 'enh_discoverSaas_active' });
+  if (dc.archive_gb > 0)          rows.push({ sku: 'NRTCLAD',   name: 'Nuix Discover SaaS – Archive Storage',          qty: dc.archive_gb,          unit: 'Per GB/month',      notes: volNote, unitBaseUSD: nm.archive_gb_month * (1 - disc.pct) * 12,                    key: 'enh_discoverSaas_archive' });
+  if (dc.file_transfer_gb > 0)    rows.push({ sku: 'NRTCLFT',   name: 'Nuix Discover SaaS – File Transfer Data',       qty: dc.file_transfer_gb,    unit: 'Per GB/month',      notes: volNote, unitBaseUSD: nm.file_transfer_gb_month * (1 - disc.pct) * 12,              key: 'enh_discoverSaas_fileTransfer' });
+  if (dc.inactive_gb > 0)         rows.push({ sku: 'NRTCLREF',  name: 'Nuix Discover SaaS – Inactive Data',            qty: dc.inactive_gb,         unit: 'Per GB/month',      notes: volNote, unitBaseUSD: nm.inactive_gb_month * (1 - disc.pct) * 12,                   key: 'enh_discoverSaas_inactive' });
+  if (dc.eca_gb > 0)              rows.push({ sku: 'NRTECA',    name: 'Nuix Discover SaaS – Early Case Assessment',    qty: dc.eca_gb,              unit: 'Per GB/month',      notes: '×12/yr', unitBaseUSD: nm.eca_gb_month * 12,                        key: 'enh_discoverSaas_eca' });
+  if (dc.audio_minutes > 0)       rows.push({ sku: 'NRTAUDIO',  name: 'Nuix Discover SaaS – Audio Transcription',      qty: dc.audio_minutes,       unit: 'Per minute/month',  notes: '×12/yr', unitBaseUSD: nm.audio_transcription_minute_month * 12,   key: 'enh_discoverSaas_audio' });
+  if (dc.translation_docs > 0)    rows.push({ sku: 'NRTMLT',    name: 'Nuix Discover SaaS – Machine Language Translation', qty: dc.translation_docs, unit: 'Per document/month', notes: '×12/yr', unitBaseUSD: nm.machine_translation_doc_month * 12,    key: 'enh_discoverSaas_translation' });
+  if (dc.tfa_users > 0)           rows.push({ sku: 'NRTTFA',    name: 'Nuix Discover SaaS – Two-Factor Authentication', qty: dc.tfa_users,          unit: 'Per user/month',    notes: '×12/yr', unitBaseUSD: nm.two_factor_auth_user_month * 12,         key: 'enh_discoverSaas_tfa' });
+  if (dc.excel_redaction_docs > 0) rows.push({ sku: 'NRTERDOC', name: 'Nuix Discover SaaS – Excel Redaction',          qty: dc.excel_redaction_docs, unit: 'Per document',     notes: 'one-off',  unitBaseUSD: nm.excel_redaction_per_doc,                 key: 'enh_discoverSaas_excelRedaction' });
+  if (dc.gen_ai_review_mode === 'active' && dc.active_gb > 0)
+    rows.push({ sku: 'NRTAIACT', name: 'Nuix Discover SaaS – Gen AI Review (Active Data)', qty: dc.active_gb,        unit: 'Per GB/month', notes: '×12/yr', unitBaseUSD: nm.gen_ai_review_per_gb * 12,               key: 'enh_discoverSaas_genaiActive' });
+  if (dc.gen_ai_review_mode === 'document' && dc.gen_ai_review_docs > 0)
+    rows.push({ sku: 'NRTAIDOC',  name: 'Nuix Discover SaaS – Gen AI Review (Document)',   qty: dc.gen_ai_review_docs, unit: 'Per document', notes: 'one-off', unitBaseUSD: nm.gen_ai_review_per_doc,                  key: 'enh_discoverSaas_genaiDocument' });
+  return rows;
+}
+function discoverOnpremSkuRows(dc, nm) {
+  const rows = [];
+  if (dc.instances > 0)                    rows.push({ sku: 'NRTOPINST',    name: 'Nuix Discover On-Prem – Instance',                qty: dc.instances,                    unit: 'Per instance/yr', notes: '', unitBaseUSD: nm.price_per_instance,             key: 'enh_discoverOnprem_instance' });
+  if (dc.users > 0)                        rows.push({ sku: 'NRTOPUSER',    name: 'Nuix Discover On-Prem – User',                    qty: dc.users,                        unit: 'Per user/yr',     notes: '', unitBaseUSD: nm.price_per_user,                  key: 'enh_discoverOnprem_user' });
+  if (dc.capacity_gb > 0)                  rows.push({ sku: 'NRTHGB',       name: 'Nuix Discover On-Prem – Capacity (GB)',           qty: dc.capacity_gb,                  unit: 'Per GB/yr',       notes: 'alt. to Users', unitBaseUSD: nm.price_per_gb,     key: 'enh_discoverOnprem_capacity' });
+  if (dc.predictive_coding_instances > 0)  rows.push({ sku: 'NRTPCODE',     name: 'Nuix Discover On-Prem – Predictive Coding Add-on', qty: dc.predictive_coding_instances,  unit: 'Per instance/yr', notes: '', unitBaseUSD: nm.predictive_coding_per_instance, key: 'enh_discoverOnprem_predictiveCoding' });
+  if (dc.ai_review_instances > 0)          rows.push({ sku: 'NRTDISCAI01',  name: 'Nuix Discover On-Prem – AI Review',               qty: dc.ai_review_instances,          unit: 'Per instance/yr', notes: '', unitBaseUSD: nm.ai_review_per_instance,          key: 'enh_discoverOnprem_aiReview' });
+  if (dc.enrich_instances > 0)             rows.push({ sku: 'NRTDISCAI02',  name: 'Nuix Discover On-Prem – Enrich (OOTB Models)',    qty: dc.enrich_instances,             unit: 'Per instance/yr', notes: '', unitBaseUSD: nm.enrich_per_instance,             key: 'enh_discoverOnprem_enrich' });
+  if (dc.ingestion_workers > 0)            rows.push({ sku: 'NRTDISC01',    name: 'Nuix Discover On-Prem – Ingestions',              qty: dc.ingestion_workers,            unit: 'Per worker/yr',   notes: '', unitBaseUSD: nm.ingestion_per_worker,            key: 'enh_discoverOnprem_ingestions' });
+  if (dc.excel_redaction_instances > 0)    rows.push({ sku: 'NRTDISCXLR01', name: 'Nuix Discover On-Prem – Native Excel Redaction',  qty: dc.excel_redaction_instances,    unit: 'Per instance/yr', notes: '', unitBaseUSD: nm.excel_redaction_per_instance,    key: 'enh_discoverOnprem_excelRedaction' });
+  return rows;
+}
+
 // ─── Price calculations ───────────────────────────────────────────────────────
 function calcPrices() {
   const rm   = getRM();
@@ -918,8 +1007,8 @@ function calcPrices() {
   let ecBase = 0;
   const ec = state.enhancedCap;
   const nm = C.enhanced_capabilities.nuix_modules;
-  if (ec.discover_saas.selected)     ecBase += (ec.discover_saas.active_gb * (nm.discover_saas.active_gb_month + (ec.discover_saas.gen_ai_review ? nm.discover_saas.gen_ai_review_per_gb : 0)) + ec.discover_saas.archive_gb * nm.discover_saas.archive_gb_month) * 12;
-  if (ec.discover_onprem.selected)   ecBase += nm.discover_onprem.price_per_instance * ec.discover_onprem.instances + nm.discover_onprem.price_per_user * ec.discover_onprem.users;
+  if (ec.discover_saas.selected)     ecBase += discoverSaasBaseUSD(ec.discover_saas, nm.discover_saas);
+  if (ec.discover_onprem.selected)   ecBase += discoverOnpremBaseUSD(ec.discover_onprem, nm.discover_onprem);
   if (ec.adaptive_security.selected) ecBase += nm.adaptive_security.price_per_endpoint * ec.adaptive_security.endpoints + nm.adaptive_security.price_per_user * ec.adaptive_security.users + nm.adaptive_security.price_per_server * ec.adaptive_security.servers;
   if (state.visualisation.selected) ecBase += getVisualisationBundlePricing(state.visualisation).totalBaseUSD;
   if (ec.ecc && ec.ecc.selected)                 ecBase += nm.ecc.price_per_endpoint * ec.ecc.endpoints;
@@ -2762,6 +2851,127 @@ function renderStep3() {
     </div>`;
 }
 
+// Discover has its own step (between Visualisation and Add Ons) — it outgrew the
+// shared ec-card template used by the other Add Ons modules once every metered
+// SKU from the pricebook's Discover SaaS/On-Prem sections was added.
+function renderDiscover() {
+  const C  = cfg();
+  const ec = state.enhancedCap;
+  const nm = C.enhanced_capabilities.nuix_modules;
+
+  const ds   = ec.discover_saas;
+  const dsNm = nm.discover_saas;
+  const dsSel = ds.selected;
+  const dsDisc = discoverSaasVolumeDiscount(ds, dsNm);
+  const dsDiscPctLabel = Math.round(dsDisc.pct * 100) + '%';
+  const contractYears = getContractYears();
+  const contractLenLabel = state.customer.isPOC
+    ? `${state.customer.pocDuration || 3} months (POC)`
+    : `${parseInt(state.customer.contractMonths) || 12} months (${contractYears % 1 === 0 ? contractYears : contractYears.toFixed(1)} yrs)`;
+  const tierIdx = dsNm.volume_discount_tiers.indexOf(dsDisc.tier);
+  const nextTier = dsNm.volume_discount_tiers[tierIdx + 1];
+  const tierRangeLabel = nextTier
+    ? `${fmt(dsDisc.tier.threshold)}–${fmt(nextTier.threshold - 1)} TCV tier`
+    : `${fmt(dsDisc.tier.threshold)}+ TCV tier`;
+  const dsInputs = dsSel ? `
+    <div class="ec-section-title" style="margin:14px 0 8px">Storage &amp; data &middot; $/GB per month</div>
+    <div class="ec-inputs">
+      <div class="form-group"><label>Active data (GB)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="active_gb" min="0" value="${ds.active_gb}"><span style="font-size:10px;color:#6B7280">$${dsNm.active_gb_month}/GB/mo &middot; NRTCLGB</span></div>
+      <div class="form-group"><label>Archive data (GB)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="archive_gb" min="0" value="${ds.archive_gb}"><span style="font-size:10px;color:#6B7280">$${dsNm.archive_gb_month}/GB/mo &middot; NRTCLAD</span></div>
+      <div class="form-group"><label>File transfer data (GB)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="file_transfer_gb" min="0" value="${ds.file_transfer_gb}"><span style="font-size:10px;color:#6B7280">$${dsNm.file_transfer_gb_month}/GB/mo &middot; NRTCLFT</span></div>
+      <div class="form-group"><label>Inactive data (GB)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="inactive_gb" min="0" value="${ds.inactive_gb}"><span style="font-size:10px;color:#6B7280">$${dsNm.inactive_gb_month}/GB/mo &middot; NRTCLREF</span></div>
+    </div>
+
+    <div style="margin-top:14px;border:1px solid #0056e3;border-radius:8px;background:#fff;padding:12px 14px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#0056e3;margin-bottom:8px">Volume discount &middot; active + archive + file transfer + inactive</div>
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:#374151"><span>Combined list total</span><span style="font-weight:600">${fmt(dsDisc.monthlyList)}/mo</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:#374151"><span>Contract length</span><span style="font-weight:600">${contractLenLabel}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:#374151;border-bottom:1px solid #EEF1F6;padding-bottom:6px;margin-bottom:6px"><span>Total contract value (TCV)</span><span style="font-weight:600">${fmt(dsDisc.tcv)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;color:#003080"><span style="font-weight:700">Discount tier applied</span><span style="font-weight:800">${dsDiscPctLabel} off</span></div>
+      <div style="font-size:10px;color:#6B7280;margin-top:2px">${tierRangeLabel} &middot; applied equally to all four SKUs above</div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0 0;margin-top:6px;border-top:1px solid #EEF1F6;color:#166534"><span style="font-weight:700">Discounted combined total</span><span style="font-weight:800">${fmt(dsDisc.monthlyList * (1 - dsDisc.pct))}/mo</span></div>
+    </div>
+
+    <div class="ec-section-title" style="margin:14px 0 8px">Early case assessment</div>
+    <div class="ec-inputs">
+      <div class="form-group"><label>ECA hosted data (GB/month)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="eca_gb" min="0" value="${ds.eca_gb}"><span style="font-size:10px;color:#6B7280">$${dsNm.eca_gb_month}/GB/mo &middot; not part of the volume discount &middot; NRTECA</span></div>
+    </div>
+
+    <div class="ec-section-title" style="margin:14px 0 8px">Gen AI review &middot; choose one pricing method</div>
+    <div class="form-group full">
+      <select class="ec-select" data-mod="discover_saas" data-field="gen_ai_review_mode">
+        <option value="none" ${ds.gen_ai_review_mode === 'none' ? 'selected' : ''}>None</option>
+        <option value="active" ${ds.gen_ai_review_mode === 'active' ? 'selected' : ''}>Priced on active data (+$${dsNm.gen_ai_review_per_gb}/GB active/mo)</option>
+        <option value="document" ${ds.gen_ai_review_mode === 'document' ? 'selected' : ''}>Priced per document ($${dsNm.gen_ai_review_per_doc}/doc)</option>
+      </select>
+    </div>
+    ${ds.gen_ai_review_mode === 'document' ? `
+    <div class="ec-inputs" style="margin-top:8px">
+      <div class="form-group"><label>Documents analysed (per yr)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="gen_ai_review_docs" min="0" value="${ds.gen_ai_review_docs}"></div>
+    </div>` : ''}
+
+    <div class="ec-section-title" style="margin:14px 0 8px">Additional add-ons</div>
+    <div class="ec-inputs">
+      <div class="form-group"><label>Audio transcription (min/mo)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="audio_minutes" min="0" value="${ds.audio_minutes}"></div>
+      <div class="form-group"><label>Machine translation (docs/mo)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="translation_docs" min="0" value="${ds.translation_docs}"></div>
+      <div class="form-group"><label>Two-factor auth (users)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="tfa_users" min="0" value="${ds.tfa_users}"></div>
+      <div class="form-group"><label>Excel redaction (docs/yr)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="excel_redaction_docs" min="0" value="${ds.excel_redaction_docs}"></div>
+    </div>` : '';
+
+  const dsCard = `
+    <div class="ec-card ${dsSel ? 'selected' : ''}" style="grid-column:1/-1">
+      <div class="ec-card-header">
+        <div class="ec-check ${dsSel ? 'checked' : ''}" data-ec-nuix="discover_saas"></div>
+        <div class="ec-name">${dsNm.name}</div>
+      </div>
+      <div class="ec-desc">${dsNm.description}</div>
+      <div class="ec-price">$${dsNm.active_gb_month}/GB/month active &middot; $${dsNm.archive_gb_month}/GB/month archive</div>
+      ${dsInputs}
+    </div>`;
+
+  const op   = ec.discover_onprem;
+  const opNm = nm.discover_onprem;
+  const opSel = op.selected;
+  const opInputs = opSel ? `
+    <div class="ec-section-title" style="margin:14px 0 8px">Core licensing</div>
+    <div class="ec-inputs" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="form-group"><label>Instances</label><input type="number" class="ec-qty" data-mod="discover_onprem" data-field="instances" min="1" value="${op.instances}"></div>
+      <div class="form-group"><label>Users</label><input type="number" class="ec-qty" data-mod="discover_onprem" data-field="users" min="0" value="${op.users}"></div>
+      <div class="form-group"><label>Capacity (GB)</label><input type="number" class="ec-qty" data-mod="discover_onprem" data-field="capacity_gb" min="0" value="${op.capacity_gb}"></div>
+    </div>
+
+    <div class="ec-section-title" style="margin:14px 0 8px">Predictive coding &amp; AI add-ons</div>
+    <div class="ec-inputs">
+      <div class="form-group"><label>Predictive coding (instances)</label><input type="number" class="ec-qty" data-mod="discover_onprem" data-field="predictive_coding_instances" min="0" value="${op.predictive_coding_instances}"></div>
+      <div class="form-group"><label>AI Review (instances)</label><input type="number" class="ec-qty" data-mod="discover_onprem" data-field="ai_review_instances" min="0" value="${op.ai_review_instances}"></div>
+      <div class="form-group"><label>Enrich &ndash; OOTB models (instances)</label><input type="number" class="ec-qty" data-mod="discover_onprem" data-field="enrich_instances" min="0" value="${op.enrich_instances}"></div>
+    </div>
+
+    <div class="ec-section-title" style="margin:14px 0 8px">Ingestions &amp; redaction</div>
+    <div class="ec-inputs">
+      <div class="form-group"><label>Ingestions (workers)</label><input type="number" class="ec-qty" data-mod="discover_onprem" data-field="ingestion_workers" min="0" value="${op.ingestion_workers}"></div>
+      <div class="form-group"><label>Native Excel redaction (instances)</label><input type="number" class="ec-qty" data-mod="discover_onprem" data-field="excel_redaction_instances" min="0" value="${op.excel_redaction_instances}"></div>
+    </div>` : '';
+
+  const opCard = `
+    <div class="ec-card ${opSel ? 'selected' : ''}" style="grid-column:1/-1">
+      <div class="ec-card-header">
+        <div class="ec-check ${opSel ? 'checked' : ''}" data-ec-nuix="discover_onprem"></div>
+        <div class="ec-name">${opNm.name}</div>
+      </div>
+      <div class="ec-desc">${opNm.description}</div>
+      <div class="ec-price">${fmt(opNm.price_per_instance)}/instance/yr + ${fmt(opNm.price_per_user)}/user/yr</div>
+      ${opInputs}
+    </div>`;
+
+  return `
+    <div class="card">
+      <div class="card-title">Layer 3 — Configure</div>
+      <h2>Discover <span class="chip">Optional</span></h2>
+      <div class="ec-grid">${dsCard}${opCard}</div>
+    </div>`;
+}
+
 
 function renderStep5() {
   const C    = cfg();
@@ -2774,30 +2984,14 @@ function renderStep5() {
   // Knowledge Graph (linkurious) is configured on its own Visualisation step now, not here —
   // its config entry stays in nuix_modules only because the Small/Medium/Large bundles and
   // their boosters are built from its user_tiers/memory_tiers price data.
-  const nuixModHtml = Object.entries(C.enhanced_capabilities.nuix_modules).filter(([key]) => key !== 'linkurious').map(([key, mod]) => {
+  // Discover SaaS/On-Prem moved to their own Discover step (renderDiscover) — too many
+  // metered fields to fit this shared card template once the full SKU set was added.
+  const nuixModHtml = Object.entries(C.enhanced_capabilities.nuix_modules).filter(([key]) => !['linkurious', 'discover_saas', 'discover_onprem'].includes(key)).map(([key, mod]) => {
     const sel = ec[key] && ec[key].selected;
     let inputsHtml = '';
     let priceHtml  = '';
 
-    if (mod.pricing_model === 'saas') {
-      priceHtml = `$${mod.active_gb_month}/GB/month active · $${mod.archive_gb_month}/GB/month archive`;
-      inputsHtml = sel ? `<div class="ec-inputs">
-        <div class="form-group"><label>Active data (GB)</label><input type="number" class="ec-qty" data-mod="${key}" data-field="active_gb" min="0" value="${ec[key].active_gb}"></div>
-        <div class="form-group"><label>Archive / inactive data (GB)</label><input type="number" class="ec-qty" data-mod="${key}" data-field="archive_gb" min="0" value="${ec[key].archive_gb}"></div>
-        <div class="form-group full" style="margin-top:4px">
-          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
-            <input type="checkbox" class="ec-qty" data-mod="${key}" data-field="gen_ai_review" ${ec[key].gen_ai_review ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:#003080">
-            <span>Add Gen AI Review <span style="font-weight:400;color:#6b7280">(+$${mod.gen_ai_review_per_gb}/GB active data/month)</span></span>
-          </label>
-        </div>
-      </div>` : '';
-    } else if (mod.pricing_model === 'per_instance_and_user') {
-      priceHtml = `${fmt(mod.price_per_instance)}/instance/yr + ${fmt(mod.price_per_user)}/user/yr`;
-      inputsHtml = sel ? `<div class="ec-inputs">
-        <div class="form-group"><label>Instances</label><input type="number" class="ec-qty" data-mod="${key}" data-field="instances" min="1" value="${ec[key].instances}"></div>
-        <div class="form-group"><label>Users</label><input type="number" class="ec-qty" data-mod="${key}" data-field="users" min="1" value="${ec[key].users}"></div>
-      </div>` : '';
-    } else if (mod.pricing_model === 'compound') {
+    if (mod.pricing_model === 'compound') {
       priceHtml = `$${mod.price_per_endpoint}/endpoint · ${fmt(mod.price_per_user)}/user · ${fmt(mod.price_per_server)}/server`;
       inputsHtml = sel ? `<div class="ec-inputs">
         <div class="form-group"><label>Endpoints</label><input type="number" class="ec-qty" data-mod="${key}" data-field="endpoints" min="0" value="${ec[key].endpoints}"></div>
@@ -3207,15 +3401,8 @@ function renderStep7() {
   const ec3 = state.enhancedCap;
   const nm3 = C.enhanced_capabilities.nuix_modules;
   const tp3 = C.enhanced_capabilities.third_party;
-  if (ec3.discover_saas?.selected) {
-    if (ec3.discover_saas.active_gb > 0)  skuRows.push({ section: 'enhanced', sku: 'NRTCLGB',   name: 'Nuix Discover SaaS – Active Storage',  qty: ec3.discover_saas.active_gb,  unit: 'Per GB/month', layer: 'enhanced', unitBaseUSD: nm3.discover_saas.active_gb_month  * 12 });
-    if (ec3.discover_saas.archive_gb > 0) skuRows.push({ section: 'enhanced', sku: 'NRTCLAD',   name: 'Nuix Discover SaaS – Archive Storage', qty: ec3.discover_saas.archive_gb, unit: 'Per GB/month', layer: 'enhanced', unitBaseUSD: nm3.discover_saas.archive_gb_month * 12 });
-    if (ec3.discover_saas.gen_ai_review && ec3.discover_saas.active_gb > 0) skuRows.push({ section: 'enhanced', sku: 'NRTAIACT', name: 'Nuix Discover SaaS – Gen AI Review', qty: ec3.discover_saas.active_gb, unit: 'Per GB/month', layer: 'enhanced', unitBaseUSD: nm3.discover_saas.gen_ai_review_per_gb * 12 });
-  }
-  if (ec3.discover_onprem?.selected) {
-    if (ec3.discover_onprem.instances > 0) skuRows.push({ section: 'enhanced', sku: 'NRTOPINST', name: 'Nuix Discover On-Prem – Instance', qty: ec3.discover_onprem.instances, unit: 'Per instance/yr', layer: 'enhanced', unitBaseUSD: nm3.discover_onprem.price_per_instance });
-    if (ec3.discover_onprem.users > 0)     skuRows.push({ section: 'enhanced', sku: 'NRTOPUSER', name: 'Nuix Discover On-Prem – User',     qty: ec3.discover_onprem.users,     unit: 'Per user/yr',    layer: 'enhanced', unitBaseUSD: nm3.discover_onprem.price_per_user });
-  }
+  if (ec3.discover_saas?.selected)   discoverSaasSkuRows(ec3.discover_saas, nm3.discover_saas).forEach(r     => skuRows.push({ section: 'enhanced', layer: 'enhanced', ...r }));
+  if (ec3.discover_onprem?.selected) discoverOnpremSkuRows(ec3.discover_onprem, nm3.discover_onprem).forEach(r => skuRows.push({ section: 'enhanced', layer: 'enhanced', ...r }));
   if (ec3.adaptive_security?.selected) {
     if (ec3.adaptive_security.endpoints > 0) skuRows.push({ section: 'enhanced', sku: 'ENDPT001',  name: 'Adaptive Security – Endpoint', qty: ec3.adaptive_security.endpoints, unit: 'Per endpoint/yr', layer: 'enhanced', unitBaseUSD: nm3.adaptive_security.price_per_endpoint });
     if (ec3.adaptive_security.users > 0)     skuRows.push({ section: 'enhanced', sku: 'ENDPTUSER', name: 'Adaptive Security – User',     qty: ec3.adaptive_security.users,     unit: 'Per user/yr',    layer: 'enhanced', unitBaseUSD: nm3.adaptive_security.price_per_user });
@@ -3578,7 +3765,7 @@ function saveCurrentStep() {
     else saveRenewalStep();
   }
   if (state.currentStep === 6)  saveStep2();
-  if (state.currentStep === 13) savePartnerMargins();
+  if (state.currentStep === 14) savePartnerMargins();
 }
 
 function validateStep() {
@@ -3713,15 +3900,8 @@ function buildSkuRows() {
   const ec = state.enhancedCap;
   const nm = C.enhanced_capabilities.nuix_modules;
   const tp = C.enhanced_capabilities.third_party;
-  if (ec.discover_saas?.selected) {
-    if (ec.discover_saas.active_gb > 0)  rows.push({ sku: 'NRTCLGB',   name: 'Nuix Discover SaaS – Active Storage',  qty: ec.discover_saas.active_gb,  unit: 'Per GB/month', notes: `×12/yr`, layer: 'enhanced', unitBaseUSD: nm.discover_saas.active_gb_month  * 12, key: 'enh_discoverSaas_active', category: 'nuixSoftware' });
-    if (ec.discover_saas.archive_gb > 0) rows.push({ sku: 'NRTCLAD',   name: 'Nuix Discover SaaS – Archive Storage', qty: ec.discover_saas.archive_gb, unit: 'Per GB/month', notes: `×12/yr`, layer: 'enhanced', unitBaseUSD: nm.discover_saas.archive_gb_month * 12, key: 'enh_discoverSaas_archive', category: 'nuixSoftware' });
-    if (ec.discover_saas.gen_ai_review && ec.discover_saas.active_gb > 0) rows.push({ sku: 'NRTAIACT',  name: 'Nuix Discover SaaS – Gen AI Review',    qty: ec.discover_saas.active_gb,  unit: 'Per GB/month', notes: `×12/yr`, layer: 'enhanced', unitBaseUSD: nm.discover_saas.gen_ai_review_per_gb * 12, key: 'enh_discoverSaas_genai', category: 'nuixSoftware' });
-  }
-  if (ec.discover_onprem?.selected) {
-    if (ec.discover_onprem.instances > 0) rows.push({ sku: 'NRTOPINST', name: 'Nuix Discover On-Prem – Instance', qty: ec.discover_onprem.instances, unit: 'Per instance/yr', notes: '', layer: 'enhanced', unitBaseUSD: nm.discover_onprem.price_per_instance, key: 'enh_discoverOnprem_instance', category: 'nuixSoftware' });
-    if (ec.discover_onprem.users > 0)     rows.push({ sku: 'NRTOPUSER', name: 'Nuix Discover On-Prem – User',     qty: ec.discover_onprem.users,     unit: 'Per user/yr',    notes: '', layer: 'enhanced', unitBaseUSD: nm.discover_onprem.price_per_user, key: 'enh_discoverOnprem_user', category: 'nuixSoftware' });
-  }
+  if (ec.discover_saas?.selected)   discoverSaasSkuRows(ec.discover_saas, nm.discover_saas).forEach(r     => rows.push({ layer: 'enhanced', category: 'nuixSoftware', ...r }));
+  if (ec.discover_onprem?.selected) discoverOnpremSkuRows(ec.discover_onprem, nm.discover_onprem).forEach(r => rows.push({ layer: 'enhanced', category: 'nuixSoftware', ...r }));
   if (ec.adaptive_security?.selected) {
     if (ec.adaptive_security.endpoints > 0) rows.push({ sku: 'ENDPT001',  name: 'Adaptive Security – Endpoint', qty: ec.adaptive_security.endpoints, unit: 'Per endpoint/yr', notes: '', layer: 'enhanced', unitBaseUSD: nm.adaptive_security.price_per_endpoint, key: 'enh_adaptiveSecurity_endpoint', category: 'nuixSoftware' });
     if (ec.adaptive_security.users > 0)     rows.push({ sku: 'ENDPTUSER', name: 'Adaptive Security – User',     qty: ec.adaptive_security.users,     unit: 'Per user/yr',    notes: '', layer: 'enhanced', unitBaseUSD: nm.adaptive_security.price_per_user, key: 'enh_adaptiveSecurity_user', category: 'nuixSoftware' });
@@ -3953,11 +4133,11 @@ function renderPartnerMargins() {
 
 function showStep(n, noScroll = false) {
   state.currentStep = n;
-  const renders = { 1: renderStep1, 2: renderProductSuite, 3: renderContractStructure, 4: renderPricingModel, 5: renderStepE, 6: renderValueWin, 7: renderStep2, 9: renderStep3, 10: renderVisualisation, 11: renderStep5, 12: renderStepAdvantage, 13: renderPartnerMargins, 14: renderStep7 };
+  const renders = { 1: renderStep1, 2: renderProductSuite, 3: renderContractStructure, 4: renderPricingModel, 5: renderStepE, 6: renderValueWin, 7: renderStep2, 9: renderStep3, 10: renderVisualisation, 11: renderDiscover, 12: renderStep5, 13: renderStepAdvantage, 14: renderPartnerMargins, 15: renderStep7 };
   $('step-content').innerHTML = renders[n]();
   const isRenewalBuilder = n === 5 && state.customer.dealType === 'Renewal';
   const mainEl = document.querySelector('main');
-  mainEl.classList.toggle('wide', n === 14 || isRenewalBuilder);
+  mainEl.classList.toggle('wide', n === 15 || isRenewalBuilder);
   // Suppress transition so the inline override takes effect immediately
   mainEl.style.transition = 'none';
   mainEl.style.maxWidth = isRenewalBuilder ? '920px' : '';
@@ -3984,12 +4164,12 @@ function renderStepE() {
 function nextStep() {
   saveCurrentStep();
   if (!validateStep()) return;
-  if (state.currentStep < 14) {
+  if (state.currentStep < 15) {
     let next = state.currentStep + 1;
     if (next === 2)                                  next = 3;
     if (next === 5  && isUpsellBuilderSkipped())    next = 6;
     if (next === 8)                                  next = 9; // Solutions Library step removed — bundled automatically now
-    if (next === 13 && isPartnerMarginsSkipped())   next = 14;
+    if (next === 14 && isPartnerMarginsSkipped())   next = 15;
     state.maxStep = Math.max(state.maxStep, next);
     showStep(next);
   }
@@ -4002,7 +4182,7 @@ function prevStep() {
     if (prev === 2)                                prev = 1;
     if (prev === 5  && isUpsellBuilderSkipped())  prev = 4;
     if (prev === 8)                                prev = 7; // Solutions Library step removed — bundled automatically now
-    if (prev === 13 && isPartnerMarginsSkipped()) prev = 12;
+    if (prev === 14 && isPartnerMarginsSkipped()) prev = 13;
     showStep(prev);
   }
 }
@@ -4011,7 +4191,7 @@ function updateLiveQuote() {
   const panel = $('quote-panel');
   if (!panel) return;
 
-  if (state.currentStep === 14) {
+  if (state.currentStep === 15) {
     panel.style.display = '';
     panel.innerHTML = renderROIPanel();
     return;
@@ -4034,7 +4214,7 @@ function updateLiveQuote() {
   const cust     = state.customer;
   const years    = Math.max(getContractYears(), 1/12);
   const isPOC    = cust.isPOC;
-  const layerStepGate = { foundation: 7, aiSuite: 8, useCases: 9, enhanced: 10, consulting: 13 };
+  const layerStepGate = { foundation: 7, aiSuite: 8, useCases: 9, enhanced: 11, consulting: 14 };
   const totNet   = Object.entries(layers).reduce((s, [k, l]) => s + (state.currentStep >= (layerStepGate[k] || 6) ? l.net : 0), 0);
   const qpPeriods   = getContractPeriods();
   // The Implementation Packages are one-time Year 1 charges baked into the consulting layer's
@@ -4062,8 +4242,8 @@ function updateLiveQuote() {
   ].filter(Boolean).join('');
 
   // Layer rows — only show layers whose config step has been reached
-  // Steps: 7=Foundation, 9=AI Suite (also determines the bundled Solutions Library), 10=Enhanced, 11=Advantage & Implementation, 12=Consulting
-  const layerMinStep = { foundation: 6, aiSuite: 7, useCases: 7, enhanced: 10, consulting: 13 };
+  // Steps: 7=Foundation, 9=AI Suite (also determines the bundled Solutions Library), 11=Discover/Enhanced, 13=Advantage & Implementation, 14=Consulting
+  const layerMinStep = { foundation: 6, aiSuite: 7, useCases: 7, enhanced: 11, consulting: 14 };
   const layerOrder  = ['foundation', 'aiSuite', 'useCases', 'enhanced', 'consulting'];
   const layerLabels = { foundation: 'Nuix Neo Foundation', aiSuite: 'AI Suite', useCases: 'Solutions Library', enhanced: 'Add Ons', consulting: 'Customisation & Consulting' };
 
@@ -4163,16 +4343,16 @@ function updateProgress() {
     // it's now bundled automatically with Enrich/Semantic Search/Transcription in
     // the AI Suite step. Keep the blank slot so the remaining labels stay aligned
     // to their step numbers (mirrors the '' placeholder at index 1 for skipped step 2).
-    'Nuix Neo Foundation', '', 'AI Suite', 'Visualisation', 'Add Ons', 'Advantage & Implementation',
+    'Nuix Neo Foundation', '', 'AI Suite', 'Visualisation', 'Discover', 'Add Ons', 'Advantage & Implementation',
     'Partner Margins', 'Quote summary'
   ];
   const groups = [
     { label: 'Setup',          steps: isUpsellBuilderSkipped() ? [1, 3, 4] : [1, 3, 4, 5] },
     { label: 'Customer Value', steps: [6] },
-    { label: 'Configure',      steps: [7, 9, 10, 11, 12] },
-    { label: 'Finalise',       steps: isPartnerMarginsSkipped() ? [14] : [13, 14] }
+    { label: 'Configure',      steps: [7, 9, 10, 11, 12, 13] },
+    { label: 'Finalise',       steps: isPartnerMarginsSkipped() ? [15] : [14, 15] }
   ];
-  const stepDot = { 1:'A', 3:'C', 4:'D', 5:'E', 6:'★', 7:'1', 9:'2', 10:'3', 11:'4', 12:'5', 13:'◆', 14:'◈' };
+  const stepDot = { 1:'A', 3:'C', 4:'D', 5:'E', 6:'★', 7:'1', 9:'2', 10:'3', 11:'4', 12:'5', 13:'6', 14:'◆', 15:'◈' };
   const nav = $('sidebar-nav');
   if (!nav) return;
   nav.innerHTML = groups.map(g => {
@@ -4207,11 +4387,11 @@ function jumpToStep(n) {
 
 function updateNavButtons() {
   const isPricingComingSoon = false;
-  const totalSteps          = (isUpsellBuilderSkipped() ? 11 : 12) + (isPartnerMarginsSkipped() ? 0 : 1);
+  const totalSteps          = (isUpsellBuilderSkipped() ? 12 : 13) + (isPartnerMarginsSkipped() ? 0 : 1);
   $('btn-prev').style.visibility = state.currentStep > 1 ? '' : 'hidden';
-  $('btn-next').style.display = (state.currentStep === 14 || isPricingComingSoon) ? 'none' : '';
+  $('btn-next').style.display = (state.currentStep === 15 || isPricingComingSoon) ? 'none' : '';
   const lastSetupStep = isUpsellBuilderSkipped() ? 4 : 5;
-  $('btn-next').textContent   = state.currentStep === lastSetupStep ? 'Customer Value →' : state.currentStep === 6 ? 'Configure →' : state.currentStep === 12 ? 'Review Pricing →' : 'Next →';
+  $('btn-next').textContent   = state.currentStep === lastSetupStep ? 'Customer Value →' : state.currentStep === 6 ? 'Configure →' : state.currentStep === 13 ? 'Review Pricing →' : 'Next →';
   $('step-count').style.display = 'none';
 }
 
@@ -4738,7 +4918,7 @@ function bindStepEvents() {
 
 function bindBoosterEvents() {
   const isConsumption  = state.pricingModel === 'consumption';
-  const isAdvantageStep = state.currentStep === 12;
+  const isAdvantageStep = state.currentStep === 13;
   const areaId         = isConsumption ? 'consumption-pricing-area' : 'tier-rec-area';
   const renderer       = isConsumption ? renderConsumptionPricing   : renderTierRecommendation;
 
@@ -5989,15 +6169,8 @@ function generateBudgetQuote(variant) {
   const ec = state.enhancedCap;
   const nm = C.enhanced_capabilities.nuix_modules;
   const tp = C.enhanced_capabilities.third_party;
-  if (ec.discover_saas?.selected) {
-    if (ec.discover_saas.active_gb > 0)  rows.push({ sku: 'NRTCLGB',   name: 'Nuix Discover SaaS – Active Storage',  qty: ec.discover_saas.active_gb,  unit: 'Per GB/month', layer: 'enhanced', unitBaseUSD: nm.discover_saas.active_gb_month  * 12 });
-    if (ec.discover_saas.archive_gb > 0) rows.push({ sku: 'NRTCLAD',   name: 'Nuix Discover SaaS – Archive Storage', qty: ec.discover_saas.archive_gb, unit: 'Per GB/month', layer: 'enhanced', unitBaseUSD: nm.discover_saas.archive_gb_month * 12 });
-    if (ec.discover_saas.gen_ai_review && ec.discover_saas.active_gb > 0) rows.push({ sku: 'NRTAIACT', name: 'Nuix Discover SaaS – Gen AI Review', qty: ec.discover_saas.active_gb, unit: 'Per GB/month', layer: 'enhanced', unitBaseUSD: nm.discover_saas.gen_ai_review_per_gb * 12 });
-  }
-  if (ec.discover_onprem?.selected) {
-    if (ec.discover_onprem.instances > 0) rows.push({ sku: 'NRTOPINST', name: 'Nuix Discover On-Prem – Instance', qty: ec.discover_onprem.instances, unit: 'Per instance/yr', layer: 'enhanced', unitBaseUSD: nm.discover_onprem.price_per_instance });
-    if (ec.discover_onprem.users > 0)     rows.push({ sku: 'NRTOPUSER', name: 'Nuix Discover On-Prem – User',     qty: ec.discover_onprem.users,     unit: 'Per user/yr',    layer: 'enhanced', unitBaseUSD: nm.discover_onprem.price_per_user });
-  }
+  if (ec.discover_saas?.selected)   discoverSaasSkuRows(ec.discover_saas, nm.discover_saas).forEach(r     => rows.push({ layer: 'enhanced', ...r }));
+  if (ec.discover_onprem?.selected) discoverOnpremSkuRows(ec.discover_onprem, nm.discover_onprem).forEach(r => rows.push({ layer: 'enhanced', ...r }));
   if (ec.adaptive_security?.selected) {
     if (ec.adaptive_security.endpoints > 0) rows.push({ sku: 'ENDPT001',  name: 'Adaptive Security – Endpoint', qty: ec.adaptive_security.endpoints, unit: 'Per endpoint/yr', layer: 'enhanced', unitBaseUSD: nm.adaptive_security.price_per_endpoint });
     if (ec.adaptive_security.users > 0)     rows.push({ sku: 'ENDPTUSER', name: 'Adaptive Security – User',     qty: ec.adaptive_security.users,     unit: 'Per user/yr',    layer: 'enhanced', unitBaseUSD: nm.adaptive_security.price_per_user });
@@ -7023,7 +7196,7 @@ function showPriceList() {
   html += sect('Foundation Tiers (Worker-based)', null, D.tiers.map(t =>
     '<tr>' + lbl(t.name, t.key === 'light' ? '10 workers · 10 users · 100 training credits · Advantage Bronze'
                         : t.key === 'core'  ? '30 workers · 30 users · 300 training credits · Advantage Bronze'
-                        :                     '80 workers · 80 users · 800 training credits · Advantage Silver')
+                        :                     '60 workers · 60 users · 600 training credits · Advantage Silver')
     + pc(inp(t.price, 'foundation_tiers.' + t.key + '.price', '/ yr · ' + SKU.foundation[t.key])) + '</tr>'
   ).join(''));
 
@@ -7172,22 +7345,21 @@ function showSKUListPage() {
   const skuRows = [
     ['Layer 1 – Nuix Neo Foundation','NEO007S','Nuix Neo Foundation – Standard','Per year','$155,000','10 workers · 50TB · 10 users · 100 training hrs · Advantage Bronze'],
     ['Layer 1 – Nuix Neo Foundation','NEO007MD','Nuix Neo Foundation – Accelerate','Per year','$400,000','30 workers · 150TB · 30 users · 300 training hrs · Advantage Bronze'],
-    ['Layer 1 – Nuix Neo Foundation','NEO007L','Nuix Neo Foundation – Performance','Per year','$800,000','80 workers · 400TB · 80 users · 800 training hrs · Advantage Silver'],
+    ['Layer 1 – Nuix Neo Foundation','NEO007L','Nuix Neo Foundation – Performance','Per year','$720,000','60 workers · 60 users · 600 training hrs · Advantage Silver'],
     ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CS','Nuix Neo Foundation – Standard (Consumption)','Per year','$155,000','10TB · 10 users · 100 training hrs · Advantage Bronze'],
     ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CMD','Nuix Neo Foundation – Accelerate (Consumption)','Per year','$400,000','40TB · 30 users · 300 training hrs · Advantage Bronze'],
-    ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CL','Nuix Neo Foundation – Performance (Consumption)','Per year','$800,000','100TB · 80 users · 800 training hrs · Advantage Silver'],
-    ['Layer 1 – Foundation Booster','NEOBWS','Additional Worker – Standard','Per worker/yr','$25,000',''],
-    ['Layer 1 – Foundation Booster','NEOBWMD','Additional Worker – Accelerate','Per worker/yr','$16,000',''],
-    ['Layer 1 – Foundation Booster','NEOBWL','Additional Worker – Performance','Per worker/yr','$10,000',''],
+    ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CL','Nuix Neo Foundation – Performance (Consumption)','Per year','$720,000','75TB · 60 users · 600 training hrs · Advantage Silver'],
+    ['Layer 1 – Foundation Booster','NEOBWS','Additional Worker – Standard','Per worker/yr','$31,000',''],
+    ['Layer 1 – Foundation Booster','NEOBWMD','Additional Worker – Accelerate','Per worker/yr','$27,000',''],
+    ['Layer 1 – Foundation Booster','NEOBWL','Additional Worker – Performance','Per worker/yr','$24,000',''],
     ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-L','Additional Volume – Standard','Per TB/yr','$6,000',''],
     ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-C','Additional Volume – Accelerate','Per TB/yr','$5,333',''],
-    ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-R','Additional Volume – Performance','Per TB/yr','$4,000',''],
     ['Layer 1 – Foundation Booster','NEOBRS','Additional Concurrent User – Standard','Per user/yr','$9,000',''],
     ['Layer 1 – Foundation Booster','NEOBRMD','Additional Concurrent User – Accelerate','Per user/yr','$6,000',''],
     ['Layer 1 – Foundation Booster','NEOBRL','Additional Concurrent User – Performance','Per user/yr','$3,000',''],
     ['Layer 1 – Foundation Booster (Consumption)','NEOBTBS','Additional TB – Standard (Consumption)','Per TB/yr','$31,000',''],
     ['Layer 1 – Foundation Booster (Consumption)','NEOBTBMD','Additional TB – Accelerate (Consumption)','Per TB/yr','$20,000',''],
-    ['Layer 1 – Foundation Booster (Consumption)','NEOBTBL','Additional TB – Performance (Consumption)','Per TB/yr','$16,000',''],
+    ['Layer 1 – Foundation Booster (Consumption)','NEOBTBL','Additional TB – Performance (Consumption)','Per TB/yr','$19,200',''],
     ['Layer 4 – Advantage & Implementation','CSLT101U','Support Upgrade – Advantage Bronze','Per year','$30,000','Included in Standard; incremental for Accelerate/Performance'],
     ['Layer 4 – Advantage & Implementation','CSLT102U','Support Upgrade – Advantage Silver','Per year','$60,000','$30,000 incremental from Bronze'],
     ['Layer 4 – Advantage & Implementation','CSLT103U','Support Upgrade – Advantage Gold','Per year','$105,000','$75,000 from Bronze · $45,000 from Silver'],
@@ -7220,16 +7392,30 @@ function showSKUListPage() {
     ['Layer 2 – AI Suite','NEOAI004MD','BYO AI - Graph – Accelerate','Per year','$400,000','Requires Knowledge Graph — auto-added as a separate line item'],
     ['Layer 2 – AI Suite','NEOAI004L','BYO AI - Graph – Performance','Per year','$600,000','Requires Knowledge Graph — auto-added as a separate line item'],
     ['Layer 2 – AI Suite','NEOAI005S','Agentic: AI - Advanced – Standard','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOAI005MD','Agentic: AI - Advanced – Accelerate','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOAI005L','Agentic: AI - Advanced – Performance','Per year','$240,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOAI005MD','Agentic: AI - Advanced – Accelerate','Per year','$400,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOAI005L','Agentic: AI - Advanced – Performance','Per year','$600,000','Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library'],
     ['Layer 2 – AI Suite','NEOSLIBS','Solutions Library – Standard','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
     ['Layer 2 – AI Suite','NEOSLIBMD','Solutions Library – Accelerate','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
     ['Layer 2 – AI Suite','NEOSLIBL','Solutions Library – Performance','Per year','$0','Bundled at no charge with Enrich/Semantic Search/Transcription'],
-    ['Layer 3 – Enhanced Capability','NRTCLGB','Nuix Discover SaaS – Active Storage','Per GB/month','$10',''],
-    ['Layer 3 – Enhanced Capability','NRTCLAD','Nuix Discover SaaS – Archive Storage','Per GB/month','$2',''],
-    ['Layer 3 – Enhanced Capability','NRTAIACT','Nuix Discover SaaS – Gen AI Review','Per GB/month','$5','Optional add-on to Discover SaaS · applied to active data GB'],
-    ['Layer 3 – Enhanced Capability','NRTOPINST','Nuix Discover On-Prem – Instance','Per instance/yr','$30,000',''],
-    ['Layer 3 – Enhanced Capability','NRTOPUSER','Nuix Discover On-Prem – User','Per user/yr','$2,000',''],
+    ['Layer 3 – Enhanced Capability','NRTCLGB','Nuix Discover SaaS – Active Storage','Per GB/month','$14.75','Pooled with NRTCLAD/NRTCLFT/NRTCLREF for volume discounting — see P&P Guide'],
+    ['Layer 3 – Enhanced Capability','NRTCLAD','Nuix Discover SaaS – Archive Storage','Per GB/month','$3.70','Pooled with NRTCLGB/NRTCLFT/NRTCLREF for volume discounting — see P&P Guide'],
+    ['Layer 3 – Enhanced Capability','NRTCLFT','Nuix Discover SaaS – File Transfer Data','Per GB/month','$3.70','Pooled with NRTCLGB/NRTCLAD/NRTCLREF for volume discounting — see P&P Guide'],
+    ['Layer 3 – Enhanced Capability','NRTCLREF','Nuix Discover SaaS – Inactive Data','Per GB/month','$3.70','Pooled with NRTCLGB/NRTCLAD/NRTCLFT for volume discounting — see P&P Guide'],
+    ['Layer 3 – Enhanced Capability','NRTECA','Nuix Discover SaaS – Early Case Assessment','Per GB/month','$4.90',''],
+    ['Layer 3 – Enhanced Capability','NRTAIACT','Nuix Discover SaaS – Gen AI Review (Active Data)','Per GB/month','$5','Choose one Gen AI Review pricing method · applied to active data GB'],
+    ['Layer 3 – Enhanced Capability','NRTAIDOC','Nuix Discover SaaS – Gen AI Review (Document)','Per document','$0.06','Choose one Gen AI Review pricing method · one-off, not annualized'],
+    ['Layer 3 – Enhanced Capability','NRTAUDIO','Nuix Discover SaaS – Audio Transcription','Per minute/month','$0.35',''],
+    ['Layer 3 – Enhanced Capability','NRTMLT','Nuix Discover SaaS – Machine Language Translation','Per document/month','$0.40','35,000 characters = 1 document'],
+    ['Layer 3 – Enhanced Capability','NRTTFA','Nuix Discover SaaS – Two-Factor Authentication','Per user/month','$6.80',''],
+    ['Layer 3 – Enhanced Capability','NRTERDOC','Nuix Discover SaaS – Excel Redaction','Per document','$1.00','One-off, not annualized'],
+    ['Layer 3 – Enhanced Capability','NRTOPINST','Nuix Discover On-Prem – Instance','Per instance/yr','$59,540',''],
+    ['Layer 3 – Enhanced Capability','NRTOPUSER','Nuix Discover On-Prem – User','Per user/yr','$2,380',''],
+    ['Layer 3 – Enhanced Capability','NRTHGB','Nuix Discover On-Prem – Capacity (GB)','Per GB/yr','$4.32','Alternative capacity metric to User'],
+    ['Layer 3 – Enhanced Capability','NRTPCODE','Nuix Discover On-Prem – Predictive Coding Add-on','Per instance/yr','$34,020',''],
+    ['Layer 3 – Enhanced Capability','NRTDISCAI01','Nuix Discover On-Prem – AI Review','Per instance/yr','$45,500',''],
+    ['Layer 3 – Enhanced Capability','NRTDISCAI02','Nuix Discover On-Prem – Enrich (OOTB Models)','Per instance/yr','$45,500',''],
+    ['Layer 3 – Enhanced Capability','NRTDISC01','Nuix Discover On-Prem – Ingestions','Per worker/yr','$22,340',''],
+    ['Layer 3 – Enhanced Capability','NRTDISCXLR01','Nuix Discover On-Prem – Native Excel Redaction','Per instance/yr','$7,000',''],
     ['Layer 3 – Enhanced Capability','ENDPT001','Adaptive Security – Endpoint','Per endpoint/yr','$20',''],
     ['Layer 3 – Enhanced Capability','ENDPTUSER','Adaptive Security – User','Per user/yr','$3,000',''],
     ['Layer 3 – Enhanced Capability','ENDPTSVR','Adaptive Security – Server','Per server/yr','$30,000',''],
@@ -7259,9 +7445,9 @@ function showSKUListPage() {
     ['Layer 3 – Third Party','Q1CNOP310','Q1 – EV On-Prem','Per year','$22,570',''],
     ['Layer 3 – Third Party','Q1CNSS320','Q1 – EV Cloud','Per year','$26,130',''],
     ['Layer 3 – Third Party','Q1CNOP390','Q1 – IBM FileNet','Per year','$20,870',''],
-    ['Layer 3 – Third Party','Q1CNOP350','Q1 – Google Gmail','Per year','$13,250',''],
-    ['Layer 3 – Third Party','Q1CNOP340','Q1 – Google Vault','Per year','$23,800',''],
-    ['Layer 3 – Third Party','Q1CNOP330','Q1 – OpenText LL','Per year','$13,520',''],
+    ['Layer 3 – Third Party','Q1CNOP350','Q1 – Google Gmail','Per year','$19,010',''],
+    ['Layer 3 – Third Party','Q1CNOP340','Q1 – Google Vault','Per year','$30,880',''],
+    ['Layer 3 – Third Party','Q1CNOP330','Q1 – OpenText LL','Per year','$28,510',''],
     ['Layer 3 – Third Party','Q1CNOP410','Q1 – OpenText TRIM','Per year','$21,460',''],
     ['Layer 3 – Third Party','Q1CNOP300','Q1 – Source One','Per year','$13,520',''],
     ['Layer 3 – Third Party','Q1CNOP380','Q1 – Symphony','Per year','$20,870',''],
@@ -7588,6 +7774,7 @@ function showPricingGuide() {
     <a class="nav-item" data-target="sec-boosters"><span class="nav-badge">Layer 1 — Boosters</span>Foundation Boosters</a>
     <a class="nav-item" data-target="sec-ai"><span class="nav-badge">Layer 2</span>AI Suite</a>
     <a class="nav-item" data-target="sec-visualisation"><span class="nav-badge">Layer 3</span>Visualisation Bundle</a>
+    <a class="nav-item" data-target="sec-discover-pricing"><span class="nav-badge">Layer 3</span>Discover — Pricing Detail</a>
     <a class="nav-item" data-target="sec-ec-pricing"><span class="nav-badge">Layer 3</span>Add Ons — Pricing Detail</a>
     <a class="nav-item" data-target="sec-ec-matrix"><span class="nav-badge">Layer 3 — Use Case Fit</span>Add Ons</a>
     <a class="nav-item" data-target="sec-advantage"><span class="nav-badge">Layer 4</span>Advantage &amp; Implementation</a>
@@ -7608,12 +7795,16 @@ function showPricingGuide() {
         <p class="section-intro">The Nuix NEO framework follows the same 5-step workflow as the Pricing Tool. Every deal starts with Step 1 — Nuix Neo Foundation; each subsequent step adds an optional layer on top.</p>
         <div class="stack-wrap">
           <div class="stack-layer l5">
-            <div class="stack-head"><span class="stack-num">Step 5</span><span class="stack-name">Advantage &amp; Implementation</span><span class="stack-price">Optional / one-off</span></div>
+            <div class="stack-head"><span class="stack-num">Step 6</span><span class="stack-name">Advantage &amp; Implementation</span><span class="stack-price">Optional / one-off</span></div>
             <div class="stack-body">Advantage support upgrades (Bronze → Silver → Gold), Advantage Hours Top Up packs (CSLT107), the Foundation (CSLT300) and Solution (CSLT301) Implementation Packages, and the optional Component License Extension for eligible Nuix Neo renewals.</div>
           </div>
           <div class="stack-layer l4">
-            <div class="stack-head"><span class="stack-num">Step 4</span><span class="stack-name">Add Ons</span><span class="stack-price">Usage-based</span></div>
-            <div class="stack-body">Nuix modules (Discover SaaS/On-Prem, Adaptive Security, ECC (Enterprise Collection Centre), Automate Legal Hold) and certified third-party integrations (ABBYY, Q1 Dynamics, T3K, Veritone), priced per GB, endpoint, user or connector.</div>
+            <div class="stack-head"><span class="stack-num">Step 5</span><span class="stack-name">Add Ons</span><span class="stack-price">Usage-based</span></div>
+            <div class="stack-body">Nuix modules (Adaptive Security, ECC (Enterprise Collection Centre), Automate Legal Hold) and certified third-party integrations (ABBYY, Q1 Dynamics, T3K, Veritone), priced per GB, endpoint, user or connector.</div>
+          </div>
+          <div class="stack-layer l4">
+            <div class="stack-head"><span class="stack-num">Step 4</span><span class="stack-name">Discover</span><span class="stack-price">Usage-based</span></div>
+            <div class="stack-body">Nuix Discover SaaS (metered per GB/user/minute/document per month) and Discover On-Prem (licensed per instance/user/GB/worker per year) — split into their own step given the size of the Discover SKU set.</div>
           </div>
           <div class="stack-layer l3">
             <div class="stack-head"><span class="stack-num">Step 3</span><span class="stack-name">Visualisation</span><span class="stack-price">$96K – $229K / yr</span></div>
@@ -7624,7 +7815,7 @@ function showPricingGuide() {
             <div class="stack-body">AI-powered processing modules: Enrich, Semantic Search, Transcription, BYO AI, BYO AI - Advanced, and BYO AI - Graph. Priced per Foundation tier. Enrich, Semantic Search and Transcription each include the Solutions Library — pre-packaged OOTB workflows, dashboards and reports — bundled automatically at no extra charge, and buying all three individually auto-upgrades the quote to the discounted AI Bundle.</div>
           </div>
           <div class="stack-layer l1">
-            <div class="stack-head"><span class="stack-num">Step 1</span><span class="stack-name">Nuix Neo Foundation</span><span class="stack-price">$155K – $800K+ / yr</span></div>
+            <div class="stack-head"><span class="stack-num">Step 1</span><span class="stack-name">Nuix Neo Foundation</span><span class="stack-price">$155K – $720K+ / yr</span></div>
             <div class="stack-body">Required base for every deployment. Core platform: workers, data volume, Concurrent Review users, training credits and Advantage support. Available in Standard, Accelerate and Performance tiers.</div>
           </div>
         </div>
@@ -7669,13 +7860,13 @@ function showPricingGuide() {
           <div class="tier-card">
             <div class="tier-card-head">
               <div><span class="tc-chip chip-rapid">Performance</span></div>
-              <div class="tc-price">$800K</div>
+              <div class="tc-price">$720K</div>
               <div class="tc-price-sub">per year</div>
             </div>
             <div class="tier-card-body">
-              <div class="tc-row"><span class="tc-label">Workers</span><span class="tc-value">80</span></div>
-              <div class="tc-row"><span class="tc-label">Users</span><span class="tc-value">80</span></div>
-              <div class="tc-row"><span class="tc-label">Training</span><span class="tc-value">800 credits</span></div>
+              <div class="tc-row"><span class="tc-label">Workers</span><span class="tc-value">60</span></div>
+              <div class="tc-row"><span class="tc-label">Users</span><span class="tc-value">60</span></div>
+              <div class="tc-row"><span class="tc-label">Training</span><span class="tc-value">600 credits</span></div>
               <div class="tc-support">Advantage Silver</div>
             </div>
           </div>
@@ -7727,13 +7918,13 @@ function showPricingGuide() {
           <div class="tier-card">
             <div class="tier-card-head">
               <div><span class="tc-chip chip-rapid">Performance</span></div>
-              <div class="tc-price">$800K</div>
+              <div class="tc-price">$720K</div>
               <div class="tc-price-sub">per year · SKU NEO007CL</div>
             </div>
             <div class="tier-card-body">
-              <div class="tc-row"><span class="tc-label">Included TB/yr</span><span class="tc-value">100</span></div>
-              <div class="tc-row"><span class="tc-label">Users</span><span class="tc-value">80</span></div>
-              <div class="tc-row"><span class="tc-label">Training</span><span class="tc-value">800 credits</span></div>
+              <div class="tc-row"><span class="tc-label">Included TB/yr</span><span class="tc-value">75</span></div>
+              <div class="tc-row"><span class="tc-label">Users</span><span class="tc-value">60</span></div>
+              <div class="tc-row"><span class="tc-label">Training</span><span class="tc-value">600 credits</span></div>
               <div class="tc-support">Advantage Silver</div>
             </div>
           </div>
@@ -7746,7 +7937,7 @@ function showPricingGuide() {
         <table>
           <thead><tr><th>Resource</th><th class="right">Standard /yr</th><th class="right">Accelerate /yr</th><th class="right">Performance /yr</th></tr></thead>
           <tbody>
-            <tr><td><strong>Additional TB</strong><div class="sub-text">SKU NEOBTBS · NEOBTBMD · NEOBTBL</div></td><td class="price-cell" style="text-align:right">$31,000</td><td class="price-cell" style="text-align:right">$20,000</td><td class="price-cell" style="text-align:right">$16,000</td></tr>
+            <tr><td><strong>Additional TB</strong><div class="sub-text">SKU NEOBTBS · NEOBTBMD · NEOBTBL</div></td><td class="price-cell" style="text-align:right">$31,000</td><td class="price-cell" style="text-align:right">$20,000</td><td class="price-cell" style="text-align:right">$19,200</td></tr>
             <tr><td><strong>Additional Concurrent User</strong></td><td class="price-cell" style="text-align:right">$9,000</td><td class="price-cell" style="text-align:right">$6,000</td><td class="price-cell" style="text-align:right">$3,000</td></tr>
           </tbody>
         </table>
@@ -7767,7 +7958,7 @@ function showPricingGuide() {
         <table>
           <thead><tr><th>Resource</th><th class="right">Standard /yr</th><th class="right">Accelerate /yr</th><th class="right">Performance /yr</th></tr></thead>
           <tbody>
-            <tr><td><strong>Additional Worker</strong></td><td class="price-cell" style="text-align:right">$25,000</td><td class="price-cell" style="text-align:right">$16,000</td><td class="price-cell" style="text-align:right">$10,000</td></tr>
+            <tr><td><strong>Additional Worker</strong></td><td class="price-cell" style="text-align:right">$31,000</td><td class="price-cell" style="text-align:right">$27,000</td><td class="price-cell" style="text-align:right">$24,000</td></tr>
             <tr><td><strong>Additional Concurrent User</strong></td><td class="price-cell" style="text-align:right">$9,000</td><td class="price-cell" style="text-align:right">$6,000</td><td class="price-cell" style="text-align:right">$3,000</td></tr>
           </tbody>
         </table>
@@ -7797,6 +7988,7 @@ function showPricingGuide() {
             <tr><td><strong>BYO AI</strong><div class="sub-text">Bring your own LLM; build custom AI-powered workflows</div></td><td class="price-cell" style="text-align:right">$100,000</td><td class="price-cell" style="text-align:right">$135,000</td><td class="price-cell" style="text-align:right">$200,000</td></tr>
             <tr><td><strong>BYO AI - Advanced</strong><div class="sub-text">Includes all standard BYO AI features, plus advanced LLM orchestration with enhanced model capabilities and custom AI workflows at scale</div></td><td class="price-cell" style="text-align:right">$180,000</td><td class="price-cell" style="text-align:right">$240,000</td><td class="price-cell" style="text-align:right">$360,000</td></tr>
             <tr><td><strong>BYO AI - Graph</strong><div class="sub-text">Includes all standard BYO AI and BYO AI - Advanced features, plus graph-powered AI combining knowledge graph analytics with LLM workflows. Requires a separate Knowledge Graph order (auto-added to the quote as its own line item).</div></td><td class="price-cell" style="text-align:right">$300,000</td><td class="price-cell" style="text-align:right">$400,000</td><td class="price-cell" style="text-align:right">$600,000</td></tr>
+            <tr><td><strong>Agentic: AI - Advanced</strong><div class="sub-text">AI-powered case review and investigation — document Q&amp;A, summarisation, translation, timeline generation, automated tagging and agentic workflows, with governance, security, audit logging and enterprise LLM support. Neo 3.0 · Local Deployment only · requires Semantic Search + Advantage Silver (each auto-added to the quote) · includes Solutions Library.</div></td><td class="price-cell" style="text-align:right">$240,000</td><td class="price-cell" style="text-align:right">$400,000</td><td class="price-cell" style="text-align:right">$600,000</td></tr>
           </tbody>
         </table>
       </div>
@@ -7837,6 +8029,41 @@ function showPricingGuide() {
       </div>
     </div>
 
+    <!-- ── 5a. Discover Pricing ── -->
+    <div class="section" id="sec-discover-pricing">
+      <div class="section-header l4" onclick="toggleSection(this)">
+        <div class="section-header-left"><span class="badge">Layer 3</span><h2>Discover — Pricing Detail</h2></div>
+        <span class="collapse-icon">&#8964;</span>
+      </div>
+      <div class="section-body">
+        <p class="section-intro">Active Data, Archive Data, File Transfer Data and Inactive Data are pooled for volume discounting: their combined list-price total is projected across the full contract (with annual uplift compounding) into a total contract value (TCV), and one blended discount is applied equally to all four — 20% under $100K TCV, rising to 30/40/50/60% at the $100K/$200K/$300K/$400K breakpoints. Rates below are list, before that discount.</p>
+        <table>
+          <thead><tr><th>Capability</th><th>Pricing Model</th><th class="right">Rate</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Nuix Discover SaaS — Active data</strong></td><td>Per GB/month</td><td class="price-cell" style="text-align:right">$14.75</td></tr>
+            <tr><td style="padding-left:24px">Archive data <span class="sub-text">NRTCLAD</span></td><td>Per GB/month</td><td class="price-cell" style="text-align:right">$3.70</td></tr>
+            <tr><td style="padding-left:24px">File transfer data <span class="sub-text">NRTCLFT</span></td><td>Per GB/month</td><td class="price-cell" style="text-align:right">$3.70</td></tr>
+            <tr><td style="padding-left:24px">Inactive data <span class="sub-text">NRTCLREF</span></td><td>Per GB/month</td><td class="price-cell" style="text-align:right">$3.70</td></tr>
+            <tr><td style="padding-left:24px">Early case assessment <span class="sub-text">NRTECA</span></td><td>Per GB/month</td><td class="price-cell" style="text-align:right">$4.90</td></tr>
+            <tr><td style="padding-left:24px">Gen AI Review — active data <span class="sub-text">NRTAIACT · choose one Gen AI Review pricing method</span></td><td>Per GB/month</td><td class="price-cell" style="text-align:right">$5.00</td></tr>
+            <tr><td style="padding-left:24px">Gen AI Review — per document <span class="sub-text">NRTAIDOC · choose one Gen AI Review pricing method</span></td><td>Per document</td><td class="price-cell" style="text-align:right">$0.06</td></tr>
+            <tr><td style="padding-left:24px">Audio transcription <span class="sub-text">NRTAUDIO</span></td><td>Per minute/month</td><td class="price-cell" style="text-align:right">$0.35</td></tr>
+            <tr><td style="padding-left:24px">Machine language translation <span class="sub-text">NRTMLT · 35,000 characters = 1 document</span></td><td>Per document/month</td><td class="price-cell" style="text-align:right">$0.40</td></tr>
+            <tr><td style="padding-left:24px">Two-factor authentication <span class="sub-text">NRTTFA</span></td><td>Per user/month</td><td class="price-cell" style="text-align:right">$6.80</td></tr>
+            <tr><td style="padding-left:24px">Excel redaction <span class="sub-text">NRTERDOC · one-off, not annualized</span></td><td>Per document</td><td class="price-cell" style="text-align:right">$1.00</td></tr>
+            <tr><td><strong>Nuix Discover On-Prem — Instance</strong></td><td>Per instance/yr</td><td class="price-cell" style="text-align:right">$59,540</td></tr>
+            <tr><td style="padding-left:24px">User <span class="sub-text">NRTOPUSER</span></td><td>Per user/yr</td><td class="price-cell" style="text-align:right">$2,380</td></tr>
+            <tr><td style="padding-left:24px">Capacity (GB) <span class="sub-text">NRTHGB · alternative capacity metric to User</span></td><td>Per GB/yr</td><td class="price-cell" style="text-align:right">$4.32</td></tr>
+            <tr><td style="padding-left:24px">Predictive coding add-on <span class="sub-text">NRTPCODE</span></td><td>Per instance/yr</td><td class="price-cell" style="text-align:right">$34,020</td></tr>
+            <tr><td style="padding-left:24px">AI Review <span class="sub-text">NRTDISCAI01</span></td><td>Per instance/yr</td><td class="price-cell" style="text-align:right">$45,500</td></tr>
+            <tr><td style="padding-left:24px">Enrich — OOTB models <span class="sub-text">NRTDISCAI02</span></td><td>Per instance/yr</td><td class="price-cell" style="text-align:right">$45,500</td></tr>
+            <tr><td style="padding-left:24px">Ingestions <span class="sub-text">NRTDISC01</span></td><td>Per worker/yr</td><td class="price-cell" style="text-align:right">$22,340</td></tr>
+            <tr><td style="padding-left:24px">Native Excel redaction <span class="sub-text">NRTDISCXLR01</span></td><td>Per instance/yr</td><td class="price-cell" style="text-align:right">$7,000</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- ── 5. EC Pricing ── -->
     <div class="section" id="sec-ec-pricing">
       <div class="section-header l4" onclick="toggleSection(this)">
@@ -7847,9 +8074,6 @@ function showPricingGuide() {
         <table>
           <thead><tr><th>Capability</th><th>Pricing Model</th><th class="right">Rate</th></tr></thead>
           <tbody>
-            <tr><td><strong>Nuix Discover SaaS</strong></td><td>Per GB/month</td><td class="price-cell" style="text-align:right">$10 active &nbsp;·&nbsp; $2 archive</td></tr>
-            <tr><td style="padding-left:24px"><strong>Gen AI Review</strong> <span class="sub-text">NRTAIACT · optional add-on · active data only</span></td><td>Per GB/month</td><td class="price-cell" style="text-align:right">$5</td></tr>
-            <tr><td><strong>Nuix Discover On-Prem</strong></td><td>Per instance + per user/yr</td><td class="price-cell" style="text-align:right">$30,000/instance &nbsp;·&nbsp; $2,000/user</td></tr>
             <tr><td><strong>Adaptive Security</strong></td><td>Per endpoint / user / server /yr</td><td class="price-cell" style="text-align:right">$20/endpoint &nbsp;·&nbsp; $3,000/user &nbsp;·&nbsp; $30,000/server</td></tr>
             <tr><td><strong>ECC (Enterprise Collection Centre)</strong></td><td>Per endpoint/yr</td><td class="price-cell" style="text-align:right">$8/endpoint</td></tr>
             <tr><td><strong>Nuix Automate Legal Hold</strong></td><td>Per custodian/month</td><td class="price-cell" style="text-align:right">$2</td></tr>

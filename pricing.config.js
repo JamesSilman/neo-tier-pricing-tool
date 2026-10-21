@@ -3,13 +3,23 @@
   foundation_tiers: {
     light:      { name: 'NEO – Standard',    price: 155000, workers: 10,  volume_tb: 50,  users: 10,  training_hours: 100,  support: 'Advantage Bronze'     },
     core:       { name: 'NEO – Accelerate',  price: 400000, workers: 30,  volume_tb: 150, users: 30,  training_hours: 300,  support: 'Advantage Bronze'     },
-    rapid:      { name: 'NEO – Performance', price: 800000, workers: 80,  volume_tb: 400, users: 80,  training_hours: 800,  support: 'Advantage Silver'     }
+    // Performance (worker model) carries no data-volume dimension — it's an either/or
+    // choice between the worker model and the Consumption model, and only Consumption
+    // includes TB. volume_tb: 0 reflects that (kept numeric, not omitted, so the shared
+    // booster-cost formulas below don't need extra null-guards for this one tier).
+    rapid:      { name: 'NEO – Performance', price: 720000, workers: 60,  volume_tb: 0,   users: 60,  training_hours: 600,  support: 'Advantage Silver'     }
   },
 
   foundation_boosters: {
-    light:      { worker: 25000, volume_tb: 6000, user: 9000, training_hour: 6720 },
-    core:       { worker: 16000, volume_tb: 5333, user: 6000, training_hour: 6720 },
-    rapid:      { worker: 10000, volume_tb: 4000, user: 3000, training_hour: 6720 }
+    // Worker booster = 2x the tier's own effective $/worker rate: Standard 2 x
+    // $155,000/10 = $31,000; Accelerate 2 x $400,000/30 = $26,667, rounded to a clean
+    // $27,000; Performance 2 x $720,000/60 = $24,000. volume_tb/user/training_hour are
+    // unrelated to this rule and stay as they were.
+    light:      { worker: 31000, volume_tb: 6000, user: 9000, training_hour: 6720 },
+    core:       { worker: 27000, volume_tb: 5333, user: 6000, training_hour: 6720 },
+    // Performance: volume_tb stays 0/unused (see foundation_tiers.rapid note above);
+    // user and training_hour are intentionally unchanged.
+    rapid:      { worker: 24000, volume_tb: 0,    user: 3000, training_hour: 6720 }
   },
 
   support_booster_prices: {
@@ -31,7 +41,7 @@
   consumption_tiers: {
     light: { name: 'NEO – Standard (Consumption)',    sku: 'NEO007CS',  price: 155000, included_tb: 10,  users: 10, training_hours: 100, support: 'Advantage Bronze', tb_booster_sku: 'NEOBTBS',   tb_booster_rate: 31000 },
     core:  { name: 'NEO – Accelerate (Consumption)',  sku: 'NEO007CMD', price: 400000, included_tb: 40,  users: 30, training_hours: 300, support: 'Advantage Bronze', tb_booster_sku: 'NEOBTBMD',  tb_booster_rate: 20000 },
-    rapid: { name: 'NEO – Performance (Consumption)', sku: 'NEO007CL',  price: 800000, included_tb: 100, users: 80, training_hours: 800, support: 'Advantage Silver', tb_booster_sku: 'NEOBTBL',   tb_booster_rate: 16000 },
+    rapid: { name: 'NEO – Performance (Consumption)', sku: 'NEO007CL',  price: 720000, included_tb: 75,  users: 60, training_hours: 600, support: 'Advantage Silver', tb_booster_sku: 'NEOBTBL',   tb_booster_rate: 19200 },
   },
 
   ai_suite_modules: {
@@ -53,11 +63,11 @@
     // Agentic case-review & investigation layer built on Semantic Search. Business rule:
     // requires Semantic Search (which auto-includes the Solutions Library) and Advantage
     // Silver support — both auto-added when this is selected (see applyAgenticAdvancedDependencies
-    // in app.js). Flat $240k across all three tiers. Not part of the BYO/agentic-approval family:
+    // in app.js). Not part of the BYO/agentic-approval family:
     // selectable alongside the BYO AI modules, no Oliver Harvey approval warning, no extra
     // training-hour packs. Neo 3.0 · Local Deployment only (descriptive note only — the tool
     // has no version/deployment gating).
-    agentic_advanced: { name: 'Agentic: AI - Advanced', question: 'Do you need AI-powered case review and investigation — document Q&A, summarisation, translation, timeline generation, automated tagging and agentic workflows, with governance, security, audit logging and enterprise LLM support?', availabilityNote: 'Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver', price: { light: 240000, core: 240000, rapid: 240000 } }
+    agentic_advanced: { name: 'Agentic: AI - Advanced', question: 'Do you need AI-powered case review and investigation — document Q&A, summarisation, translation, timeline generation, automated tagging and agentic workflows, with governance, security, audit logging and enterprise LLM support?', availabilityNote: 'Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver', price: { light: 240000, core: 400000, rapid: 600000 } }
   },
 
   use_case_modules: {
@@ -74,8 +84,28 @@
 
   enhanced_capabilities: {
     nuix_modules: {
-      discover_saas:     { name: 'Nuix Discover – SaaS',    description: 'Cloud-hosted review and analytics. Pay per GB of active or archived data stored.',        pricing_model: 'saas',                  active_gb_month: 10,       archive_gb_month: 2,       gen_ai_review_per_gb: 5                    },
-      discover_onprem:   { name: 'Nuix Discover – On-Prem', description: 'On-premises review and analytics platform deployed in your own environment.',              pricing_model: 'per_instance_and_user', price_per_instance: 30000, price_per_user: 2000                          },
+      discover_saas:     { name: 'Nuix Discover – SaaS',    description: 'Cloud-hosted review and analytics. Pay per GB of active or archived data stored.',        pricing_model: 'saas',                  active_gb_month: 14.75,   archive_gb_month: 3.70,    gen_ai_review_per_gb: 5,
+        file_transfer_gb_month: 3.70, inactive_gb_month: 3.70, eca_gb_month: 4.90,
+        audio_transcription_minute_month: 0.35, machine_translation_doc_month: 0.40, two_factor_auth_user_month: 6.80,
+        excel_redaction_per_doc: 1.00, gen_ai_review_per_doc: 0.06,
+        // Salesforce's Discover SaaS volume-discount model: Active Data, Archive Data, File
+        // Transfer Data and Inactive Data are pooled — their combined list-price total is
+        // projected across the full contract (with annual uplift compounding, same as every
+        // other multi-year total in this tool) into a TCV, and ONE blended discount % from
+        // this table is applied equally to all four. Approximate-match: the highest threshold
+        // at or below the TCV wins — so even $1 of TCV gets the 20% floor, there's no 0% tier.
+        volume_discount_tiers: [
+          { threshold: 0,      pct: 0.20 },
+          { threshold: 100001, pct: 0.30 },
+          { threshold: 200001, pct: 0.40 },
+          { threshold: 300001, pct: 0.50 },
+          { threshold: 400001, pct: 0.60 }
+        ]
+      },
+      discover_onprem:   { name: 'Nuix Discover – On-Prem', description: 'On-premises review and analytics platform deployed in your own environment.',              pricing_model: 'per_instance_and_user', price_per_instance: 59540, price_per_user: 2380,
+        price_per_gb: 4.32, predictive_coding_per_instance: 34020, ai_review_per_instance: 45500, enrich_per_instance: 45500,
+        ingestion_per_worker: 22340, excel_redaction_per_instance: 7000
+      },
       adaptive_security: { name: 'Adaptive Security',       description: 'Endpoint security and insider threat detection across endpoints, users and servers.',       pricing_model: 'compound',              price_per_endpoint: 20,    price_per_user: 3000, price_per_server: 30000 },
       linkurious:        { name: 'Knowledge Graph',           description: 'Graph analytics for complex network and relationship analysis.',                           pricing_model: 'linkurious_tiers',
         user_tiers: [
@@ -120,9 +150,9 @@
           { key: 'ev_onprem',        sku: 'Q1CNOP310',  name: 'EV On-Prem',            price: 22570 },
           { key: 'ev_cloud',         sku: 'Q1CNSS320',  name: 'EV Cloud',              price: 26130 },
           { key: 'filenet',          sku: 'Q1CNOP390',  name: 'IBM FileNet',           price: 20870 },
-          { key: 'gmail',            sku: 'Q1CNOP350',  name: 'Google Gmail',          price: 13250 },
-          { key: 'google_vault',     sku: 'Q1CNOP340',  name: 'Google Vault',          price: 23800 },
-          { key: 'll',               sku: 'Q1CNOP330',  name: 'OpenText LL',           price: 13520 },
+          { key: 'gmail',            sku: 'Q1CNOP350',  name: 'Google Gmail',          price: 19010 },
+          { key: 'google_vault',     sku: 'Q1CNOP340',  name: 'Google Vault',          price: 30880 },
+          { key: 'll',               sku: 'Q1CNOP330',  name: 'OpenText LL',           price: 28510 },
           { key: 'opentext_tt',      sku: 'Q1CNOP410',  name: 'OpenText TRIM',         price: 21460 },
           { key: 's1',               sku: 'Q1CNOP300',  name: 'Source One',            price: 13520 },
           { key: 'symphony',         sku: 'Q1CNOP380',  name: 'Symphony',              price: 20870 },

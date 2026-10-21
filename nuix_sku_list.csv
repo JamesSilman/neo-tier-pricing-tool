@@ -1,19 +1,19 @@
 Layer,SKU,Name,Family,Unit,List Price (USD),Notes,Current
 Layer 1 – Nuix Neo Foundation,NEO007S,Nuix Neo Foundation – Standard,Nuix Neo,Per year,"$155,000","10 workers, 50TB, 10 users, 100 training hrs, Advantage Bronze support",Y
 Layer 1 – Nuix Neo Foundation,NEO007MD,Nuix Neo Foundation – Accelerate,Nuix Neo,Per year,"$400,000","30 workers, 150TB, 30 users, 300 training hrs, Advantage Bronze support",Y
-Layer 1 – Nuix Neo Foundation,NEO007L,Nuix Neo Foundation – Performance,Nuix Neo,Per year,"$800,000","80 workers, 400TB, 80 users, 800 training hrs, Advantage Silver support",Y
+Layer 1 – Nuix Neo Foundation,NEO007L,Nuix Neo Foundation – Performance,Nuix Neo,Per year,"$720,000","60 workers, 60 users, 600 training hrs, Advantage Silver support",Y
 Layer 1 – Nuix Neo Foundation (Consumption),NEO007CS,Nuix Neo Foundation – Standard (Consumption),Nuix Neo,Per year,"$155,000","10TB, 10 users, 100 training hrs, Advantage Bronze support",Y
 Layer 1 – Nuix Neo Foundation (Consumption),NEO007CMD,Nuix Neo Foundation – Accelerate (Consumption),Nuix Neo,Per year,"$400,000","40TB, 30 users, 300 training hrs, Advantage Bronze support",Y
-Layer 1 – Nuix Neo Foundation (Consumption),NEO007CL,Nuix Neo Foundation – Performance (Consumption),Nuix Neo,Per year,"$800,000","100TB, 80 users, 800 training hrs, Advantage Silver support",Y
-Layer 1 – Foundation Booster,NEOBWS,Additional Worker – Standard,Nuix Neo,Per worker/yr,"$25,000",,Y
-Layer 1 – Foundation Booster,NEOBWMD,Additional Worker – Accelerate,Nuix Neo,Per worker/yr,"$16,000",,Y
-Layer 1 – Foundation Booster,NEOBWL,Additional Worker – Performance,Nuix Neo,Per worker/yr,"$10,000",,Y
+Layer 1 – Nuix Neo Foundation (Consumption),NEO007CL,Nuix Neo Foundation – Performance (Consumption),Nuix Neo,Per year,"$720,000","75TB, 60 users, 600 training hrs, Advantage Silver support",Y
+Layer 1 – Foundation Booster,NEOBWS,Additional Worker – Standard,Nuix Neo,Per worker/yr,"$31,000",,Y
+Layer 1 – Foundation Booster,NEOBWMD,Additional Worker – Accelerate,Nuix Neo,Per worker/yr,"$27,000",,Y
+Layer 1 – Foundation Booster,NEOBWL,Additional Worker – Performance,Nuix Neo,Per worker/yr,"$24,000",,Y
 Layer 1 – Foundation Booster,NEOBRS,Additional Concurrent User – Standard,Nuix Neo,Per user/yr,"$9,000",,Y
 Layer 1 – Foundation Booster,NEOBRMD,Additional Concurrent User – Accelerate,Nuix Neo,Per user/yr,"$6,000",,Y
 Layer 1 – Foundation Booster,NEOBRL,Additional Concurrent User – Performance,Nuix Neo,Per user/yr,"$3,000",,Y
 Layer 1 – Foundation Booster (Consumption),NEOBTBS,Additional TB – Standard (Consumption),Nuix Neo,Per TB/yr,"$31,000",,Y
 Layer 1 – Foundation Booster (Consumption),NEOBTBMD,Additional TB – Accelerate (Consumption),Nuix Neo,Per TB/yr,"$20,000",,Y
-Layer 1 – Foundation Booster (Consumption),NEOBTBL,Additional TB – Performance (Consumption),Nuix Neo,Per TB/yr,"$16,000",,Y
+Layer 1 – Foundation Booster (Consumption),NEOBTBL,Additional TB – Performance (Consumption),Nuix Neo,Per TB/yr,"$19,200",,Y
 Layer 4 – Advantage & Implementation,CSLT107,Advantage - Top Up 24,Nuix Neo,Per hour,$280,,Y
 Layer 4 – Advantage & Implementation,CSLT101U,Support Upgrade – Advantage Bronze,Nuix Neo,Per year,"$30,000",Upgrade from Foundation,Y
 Layer 4 – Advantage & Implementation,CSLT102U,Support Upgrade – Advantage Silver,Nuix Neo,Per year,"$60,000",Upgrade from Foundation,Y
@@ -44,16 +44,30 @@ Layer 2 – AI Suite,NEOAI004S,BYO AI - Graph – Standard,Nuix Neo,Per year,"$3
 Layer 2 – AI Suite,NEOAI004MD,BYO AI - Graph – Accelerate,Nuix Neo,Per year,"$400,000",Includes 1× KG 5 Named Users + 1× 64GB Memory,Y
 Layer 2 – AI Suite,NEOAI004L,BYO AI - Graph – Performance,Nuix Neo,Per year,"$600,000",Includes 1× KG 5 Named Users + 1× 64GB Memory,Y
 Layer 2 – AI Suite,NEOAI005S,Agentic: AI - Advanced – Standard,Nuix Neo,Per year,"$240,000",Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library,Y
-Layer 2 – AI Suite,NEOAI005MD,Agentic: AI - Advanced – Accelerate,Nuix Neo,Per year,"$240,000",Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library,Y
-Layer 2 – AI Suite,NEOAI005L,Agentic: AI - Advanced – Performance,Nuix Neo,Per year,"$240,000",Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library,Y
+Layer 2 – AI Suite,NEOAI005MD,Agentic: AI - Advanced – Accelerate,Nuix Neo,Per year,"$400,000",Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library,Y
+Layer 2 – AI Suite,NEOAI005L,Agentic: AI - Advanced – Performance,Nuix Neo,Per year,"$600,000",Neo 3.0 · Local Deployment only · Requires Semantic Search + Advantage Silver · Includes Solutions Library,Y
 Layer 2 – AI Suite,NEOSLIBS,Solutions Library – Standard,Nuix Neo,Per year,"$0",Bundled at no charge with Enrich/Semantic Search/Transcription,Y
 Layer 2 – AI Suite,NEOSLIBMD,Solutions Library – Accelerate,Nuix Neo,Per year,"$0",Bundled at no charge with Enrich/Semantic Search/Transcription,Y
 Layer 2 – AI Suite,NEOSLIBL,Solutions Library – Performance,Nuix Neo,Per year,"$0",Bundled at no charge with Enrich/Semantic Search/Transcription,Y
-Layer 3 – Enhanced Capability,NRTCLGB,Nuix Discover SaaS – Active Storage,Discover,Per GB/month,$10,,Y
-Layer 3 – Enhanced Capability,NRTCLAD,Nuix Discover SaaS – Archive Storage,Discover,Per GB/month,$2,,Y
-Layer 3 – Enhanced Capability,NRTAIACT,Nuix Discover SaaS – Gen AI Review,Discover,Per GB/month,$5,Optional add-on to Discover SaaS · applied to active data GB,Y
-Layer 3 – Enhanced Capability,NRTOPINST,Nuix Discover On-Prem – Instance,Discover,Per instance/yr,"$30,000",,Y
-Layer 3 – Enhanced Capability,NRTOPUSER,Nuix Discover On-Prem – User,Discover,Per user/yr,"$2,000",,Y
+Layer 3 – Enhanced Capability,NRTCLGB,Nuix Discover SaaS – Active Storage,Discover,Per GB/month,$14.75,Pooled with NRTCLAD/NRTCLFT/NRTCLREF for volume discounting,Y
+Layer 3 – Enhanced Capability,NRTCLAD,Nuix Discover SaaS – Archive Storage,Discover,Per GB/month,$3.70,Pooled with NRTCLGB/NRTCLFT/NRTCLREF for volume discounting,Y
+Layer 3 – Enhanced Capability,NRTCLFT,Nuix Discover SaaS – File Transfer Data,Discover,Per GB/month,$3.70,Pooled with NRTCLGB/NRTCLAD/NRTCLREF for volume discounting,Y
+Layer 3 – Enhanced Capability,NRTCLREF,Nuix Discover SaaS – Inactive Data,Discover,Per GB/month,$3.70,Pooled with NRTCLGB/NRTCLAD/NRTCLFT for volume discounting,Y
+Layer 3 – Enhanced Capability,NRTECA,Nuix Discover SaaS – Early Case Assessment,Discover,Per GB/month,$4.90,,Y
+Layer 3 – Enhanced Capability,NRTAIACT,Nuix Discover SaaS – Gen AI Review (Active Data),Discover,Per GB/month,$5,Choose one Gen AI Review pricing method · applied to active data GB,Y
+Layer 3 – Enhanced Capability,NRTAIDOC,Nuix Discover SaaS – Gen AI Review (Document),Discover,Per document,$0.06,Choose one Gen AI Review pricing method · one-off not annualized,Y
+Layer 3 – Enhanced Capability,NRTAUDIO,Nuix Discover SaaS – Audio Transcription,Discover,Per minute/month,$0.35,,Y
+Layer 3 – Enhanced Capability,NRTMLT,Nuix Discover SaaS – Machine Language Translation,Discover,Per document/month,$0.40,"35,000 characters = 1 document",Y
+Layer 3 – Enhanced Capability,NRTTFA,Nuix Discover SaaS – Two-Factor Authentication,Discover,Per user/month,$6.80,,Y
+Layer 3 – Enhanced Capability,NRTERDOC,Nuix Discover SaaS – Excel Redaction,Discover,Per document,$1.00,One-off not annualized,Y
+Layer 3 – Enhanced Capability,NRTOPINST,Nuix Discover On-Prem – Instance,Discover,Per instance/yr,"$59,540",,Y
+Layer 3 – Enhanced Capability,NRTOPUSER,Nuix Discover On-Prem – User,Discover,Per user/yr,"$2,380",,Y
+Layer 3 – Enhanced Capability,NRTHGB,Nuix Discover On-Prem – Capacity (GB),Discover,Per GB/yr,$4.32,Alternative capacity metric to User,Y
+Layer 3 – Enhanced Capability,NRTPCODE,Nuix Discover On-Prem – Predictive Coding Add-on,Discover,Per instance/yr,"$34,020",,Y
+Layer 3 – Enhanced Capability,NRTDISCAI01,Nuix Discover On-Prem – AI Review,Discover,Per instance/yr,"$45,500",,Y
+Layer 3 – Enhanced Capability,NRTDISCAI02,Nuix Discover On-Prem – Enrich (OOTB Models),Discover,Per instance/yr,"$45,500",,Y
+Layer 3 – Enhanced Capability,NRTDISC01,Nuix Discover On-Prem – Ingestions,Discover,Per worker/yr,"$22,340",,Y
+Layer 3 – Enhanced Capability,NRTDISCXLR01,Nuix Discover On-Prem – Native Excel Redaction,Discover,Per instance/yr,"$7,000",,Y
 Layer 3 – Enhanced Capability,ENDPT001,Adaptive Security – Endpoint,Component,Per endpoint/yr,$20,,Y
 Layer 3 – Enhanced Capability,ENDPTUSER,Adaptive Security – User,Component,Per user/yr,"$3,000",,Y
 Layer 3 – Enhanced Capability,ENDPTSVR,Adaptive Security – Server,Component,Per server/yr,"$30,000",,Y
@@ -83,9 +97,9 @@ Layer 3 – Third Party,Q1CNOP400,Q1 – Cisco Webex,Third Party Add Ons,Per yea
 Layer 3 – Third Party,Q1CNOP310,Q1 – EV On-Prem,Third Party Add Ons,Per year,"$22,570",,Y
 Layer 3 – Third Party,Q1CNSS320,Q1 – EV Cloud,Third Party Add Ons,Per year,"$26,130",,Y
 Layer 3 – Third Party,Q1CNOP390,Q1 – IBM FileNet,Third Party Add Ons,Per year,"$20,870",,Y
-Layer 3 – Third Party,Q1CNOP350,Q1 – Google Gmail,Third Party Add Ons,Per year,"$13,250",,Y
-Layer 3 – Third Party,Q1CNOP340,Q1 – Google Vault,Third Party Add Ons,Per year,"$23,800",,Y
-Layer 3 – Third Party,Q1CNOP330,Q1 – OpenText LL,Third Party Add Ons,Per year,"$13,520",,Y
+Layer 3 – Third Party,Q1CNOP350,Q1 – Google Gmail,Third Party Add Ons,Per year,"$19,010",,Y
+Layer 3 – Third Party,Q1CNOP340,Q1 – Google Vault,Third Party Add Ons,Per year,"$30,880",,Y
+Layer 3 – Third Party,Q1CNOP330,Q1 – OpenText LL,Third Party Add Ons,Per year,"$28,510",,Y
 Layer 3 – Third Party,Q1CNOP410,Q1 – OpenText TRIM,Third Party Add Ons,Per year,"$21,460",,Y
 Layer 3 – Third Party,Q1CNOP300,Q1 – Source One,Third Party Add Ons,Per year,"$13,520",,Y
 Layer 3 – Third Party,Q1CNOP380,Q1 – Symphony,Third Party Add Ons,Per year,"$20,870",,Y
