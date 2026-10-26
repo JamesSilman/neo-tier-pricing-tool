@@ -109,7 +109,6 @@
       adaptive_security: { name: 'Adaptive Security',       description: 'Endpoint security and insider threat detection across endpoints, users and servers.',       pricing_model: 'compound',              price_per_endpoint: 20,    price_per_user: 3000, price_per_server: 30000 },
       linkurious:        { name: 'Knowledge Graph',           description: 'Graph analytics for complex network and relationship analysis.',                           pricing_model: 'linkurious_tiers',
         user_tiers: [
-          { key: 'u5',   sku: 'KGU001', name: '5 Named Users',   price: 29730,  users: 5   },
           { key: 'u20',  sku: 'KGU002', name: '20 Named Users',  price: 83240,  users: 20  },
           { key: 'u50',  sku: 'KGU003', name: '50 Named Users',  price: 142700, users: 50  },
           { key: 'u100', sku: 'KGU004', name: '100 Named Users', price: 214040, users: 100 },
@@ -209,8 +208,9 @@
   // No discount vs. buying the underlying KGU/KGM SKUs separately — each bundle price is
   // simply the sum of the cheapest KGU/KGM pack combination that covers its included
   // users/memory exactly (see enhanced_capabilities.nuix_modules.linkurious above).
-  //   Small:  2×KGU001 (2×5 users, $59,460)              + 1×KGM001 (64GB,  $36,400)  = $95,860
-  //   Medium: 1×KGU002 + 1×KGU001 (20+5 users, $112,970) + 1×KGM002 (128GB, $56,000)  = $168,970
+  // (KGU001, the 5-user pack, has been retired — the fixed bundle prices below are unchanged.)
+  //   Small:  10 users + 1×KGM001 (64GB,  $36,400)  = $95,860
+  //   Medium: 25 users + 1×KGM002 (128GB, $56,000)  = $168,970
   //   Large:  1×KGU003 (50 users, $142,700)               + 1×KGM003 (256GB, $86,020)  = $228,720
   // Boosters beyond the included users/memory are sold as additional whole KGU/KGM packs
   // at the same per-pack prices — see getVisualisationBundlePricing in app.js.

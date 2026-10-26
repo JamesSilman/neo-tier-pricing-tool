@@ -31,7 +31,7 @@ const state = {
   // only ever set by the recommender, never edited directly by the user.
   visualisation: {
     selected: false, bundleTier: 'small',
-    boosterUserTier: 'u5', boosterUserQty: 0,
+    boosterUserTier: 'u20', boosterUserQty: 0,
     boosterMemoryTier: 'm64', boosterMemoryQty: 0,
     needUsers: '', needGb: '',
     kgAutoEnrich: false,
@@ -2854,14 +2854,7 @@ function renderStep3() {
 // Discover has its own step (between Visualisation and Add Ons) — it outgrew the
 // shared ec-card template used by the other Add Ons modules once every metered
 // SKU from the pricebook's Discover SaaS/On-Prem sections was added.
-function renderDiscover() {
-  const C  = cfg();
-  const ec = state.enhancedCap;
-  const nm = C.enhanced_capabilities.nuix_modules;
-
-  const ds   = ec.discover_saas;
-  const dsNm = nm.discover_saas;
-  const dsSel = ds.selected;
+function discoverSaasDiscountBoxInner(ds, dsNm) {
   const dsDisc = discoverSaasVolumeDiscount(ds, dsNm);
   const dsDiscPctLabel = Math.round(dsDisc.pct * 100) + '%';
   const contractYears = getContractYears();
@@ -2873,6 +2866,26 @@ function renderDiscover() {
   const tierRangeLabel = nextTier
     ? `${fmt(dsDisc.tier.threshold)}–${fmt(nextTier.threshold - 1)} TCV tier`
     : `${fmt(dsDisc.tier.threshold)}+ TCV tier`;
+  return `
+    <div style="margin-top:14px;border:1px solid #0056e3;border-radius:8px;background:#fff;padding:12px 14px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#0056e3;margin-bottom:8px">Volume discount &middot; active + archive + file transfer + inactive</div>
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:#374151"><span>Combined list total</span><span style="font-weight:600">${fmt(dsDisc.monthlyList)}/mo</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:#374151"><span>Contract length</span><span style="font-weight:600">${contractLenLabel}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:#374151;border-bottom:1px solid #EEF1F6;padding-bottom:6px;margin-bottom:6px"><span>Total contract value (TCV)</span><span style="font-weight:600">${fmt(dsDisc.tcv)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;color:#003080"><span style="font-weight:700">Discount tier applied</span><span style="font-weight:800">${dsDiscPctLabel} off</span></div>
+      <div style="font-size:10px;color:#6B7280;margin-top:2px">${tierRangeLabel} &middot; applied equally to all four SKUs above</div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0 0;margin-top:6px;border-top:1px solid #EEF1F6;color:#166534"><span style="font-weight:700">Discounted combined total</span><span style="font-weight:800">${fmt(dsDisc.monthlyList * (1 - dsDisc.pct))}/mo</span></div>
+  `;
+}
+
+function renderDiscover() {
+  const C  = cfg();
+  const ec = state.enhancedCap;
+  const nm = C.enhanced_capabilities.nuix_modules;
+
+  const ds   = ec.discover_saas;
+  const dsNm = nm.discover_saas;
+  const dsSel = ds.selected;
   const dsInputs = dsSel ? `
     <div class="ec-section-title" style="margin:14px 0 8px">Storage &amp; data &middot; $/GB per month</div>
     <div class="ec-inputs">
@@ -2882,15 +2895,7 @@ function renderDiscover() {
       <div class="form-group"><label>Inactive data (GB)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="inactive_gb" min="0" value="${ds.inactive_gb}"><span style="font-size:10px;color:#6B7280">$${dsNm.inactive_gb_month}/GB/mo &middot; NRTCLREF</span></div>
     </div>
 
-    <div style="margin-top:14px;border:1px solid #0056e3;border-radius:8px;background:#fff;padding:12px 14px">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#0056e3;margin-bottom:8px">Volume discount &middot; active + archive + file transfer + inactive</div>
-      <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:#374151"><span>Combined list total</span><span style="font-weight:600">${fmt(dsDisc.monthlyList)}/mo</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:#374151"><span>Contract length</span><span style="font-weight:600">${contractLenLabel}</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:#374151;border-bottom:1px solid #EEF1F6;padding-bottom:6px;margin-bottom:6px"><span>Total contract value (TCV)</span><span style="font-weight:600">${fmt(dsDisc.tcv)}</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;color:#003080"><span style="font-weight:700">Discount tier applied</span><span style="font-weight:800">${dsDiscPctLabel} off</span></div>
-      <div style="font-size:10px;color:#6B7280;margin-top:2px">${tierRangeLabel} &middot; applied equally to all four SKUs above</div>
-      <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0 0;margin-top:6px;border-top:1px solid #EEF1F6;color:#166534"><span style="font-weight:700">Discounted combined total</span><span style="font-weight:800">${fmt(dsDisc.monthlyList * (1 - dsDisc.pct))}/mo</span></div>
-    </div>
+    <div id="ds-vol-discount" style="margin-top:14px;border:1px solid #0056e3;border-radius:8px;background:#fff;padding:12px 14px">${discoverSaasDiscountBoxInner(ds, dsNm)}</div>
 
     <div class="ec-section-title" style="margin:14px 0 8px">Early case assessment</div>
     <div class="ec-inputs">
@@ -4814,7 +4819,7 @@ function bindStepEvents() {
         if (!state.visualisation.selected) applyKgEnrichDependency(true);
         state.visualisation.selected = true;
         state.visualisation.bundleTier = key;
-        state.visualisation.boosterUserTier = 'u5';
+        state.visualisation.boosterUserTier = 'u20';
         state.visualisation.boosterUserQty = 0;
         state.visualisation.boosterMemoryTier = 'm64';
         state.visualisation.boosterMemoryQty = 0;
@@ -4874,10 +4879,17 @@ function bindStepEvents() {
 
   // Step 5: qty inputs for EC
   document.querySelectorAll('.ec-qty').forEach(input => {
-    input.addEventListener('change', () => {
+    input.addEventListener('input', () => {
       const mod   = input.dataset.mod;
       const field = input.dataset.field;
       state.enhancedCap[mod][field] = input.type === 'checkbox' ? input.checked : (parseFloat(input.value) || 0);
+      // Refresh the in-card volume-discount box and the quote panel in place — a full
+      // showStep() re-render would drop focus mid-typing.
+      const box = $('ds-vol-discount');
+      if (box && mod === 'discover_saas') {
+        box.innerHTML = discoverSaasDiscountBoxInner(state.enhancedCap.discover_saas, cfg().enhanced_capabilities.nuix_modules.discover_saas);
+      }
+      updateLiveQuote();
     });
   });
 
@@ -7425,7 +7437,6 @@ function showSKUListPage() {
     ['Layer 3 – Visualisation','VISBNDL001S','Visualisation Bundle – Small','Per bundle/yr','$95,860','10 Named Users · 64GB Memory'],
     ['Layer 3 – Visualisation','VISBNDL001MD','Visualisation Bundle – Medium','Per bundle/yr','$168,970','25 Named Users · 128GB Memory'],
     ['Layer 3 – Visualisation','VISBNDL001L','Visualisation Bundle – Large','Per bundle/yr','$228,720','50 Named Users · 256GB Memory'],
-    ['Layer 3 – Visualisation','KGU001','Knowledge Graph – 5 Named Users','Per pack/yr','$29,730','Bundle booster'],
     ['Layer 3 – Visualisation','KGU002','Knowledge Graph – 20 Named Users','Per pack/yr','$83,240','Bundle booster'],
     ['Layer 3 – Visualisation','KGU003','Knowledge Graph – 50 Named Users','Per pack/yr','$142,700','Bundle booster'],
     ['Layer 3 – Visualisation','KGU004','Knowledge Graph – 100 Named Users','Per pack/yr','$214,040','Bundle booster'],
@@ -8014,7 +8025,6 @@ function showPricingGuide() {
         <table>
           <thead><tr><th>Pack</th><th class="right">Price /yr</th></tr></thead>
           <tbody>
-            <tr><td>KGU001 — 5 Named Users</td><td class="price-cell" style="text-align:right">$29,730</td></tr>
             <tr><td>KGU002 — 20 Named Users</td><td class="price-cell" style="text-align:right">$83,240</td></tr>
             <tr><td>KGU003 — 50 Named Users</td><td class="price-cell" style="text-align:right">$142,700</td></tr>
             <tr><td>KGU004 — 100 Named Users</td><td class="price-cell" style="text-align:right">$214,040</td></tr>
