@@ -1334,7 +1334,7 @@ function renderStep1() {
           <input type="text" id="f-name" placeholder="e.g. Department of Home Affairs" value="${state.customer.name}">
         </div>
         <div class="form-group">
-          <label>Country</label>
+          <label>Country <span style="color:#dc2626" title="Required">*</span></label>
           <div style="position:relative">
             <input type="text" id="f-country" placeholder="Type to search country…" autocomplete="off" value="${state.customer.country || ''}">
             <div id="country-dropdown"
@@ -1342,7 +1342,7 @@ function renderStep1() {
           </div>
         </div>
         <div class="form-group">
-          <label>Customer type</label>
+          <label>Customer type <span style="color:#dc2626" title="Required">*</span></label>
           <select id="f-type"><option value="">Select type…</option>${typeOpts}</select>
         </div>
         <div class="form-group">
