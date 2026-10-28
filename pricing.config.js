@@ -220,6 +220,25 @@
     large:  { key: 'large',  sku: 'VISBNDL001L',  name: 'Visualisation Bundle – Large',  included_users: 50, included_memory_gb: 256, price: 228720 },
   },
 
+  // Non-production (test) environment licences — Configure section 7. All priced Per Unit.
+  // USD list price per unit per year; AUD/CAD/EUR/GBP come from the standard CURRENCIES rates.
+  // (list_price: null would mean not yet priced — quoted at $0 with a "Price TBC" note.)
+  // Performance tiers are sized at ~25% of
+  // what the customer buys for production (e.g. 40 production workers → 10 test workers).
+  non_prod: {
+    skus: [
+      { sku: 'NONPRODDISC01', family: 'Nuix Discover',          tier: 'v100+',         name: 'Nuix Discover - v100+',                               list_price: 10000, description: 'Test environment replicating the core Nuix Discover configuration with the Neo Engine. Includes 2 Workers, 5 Reviewers, 1 NMS, and add-ons. Designed to support workflow validation, ingestion testing, and non-production testing activities.' },
+      { sku: 'NONPRODDISC02', family: 'Nuix Discover',          tier: 'v10.x',         name: 'Nuix Discover - v10.x',                               list_price: 7500, description: 'Test environment replicating the core Nuix Discover configuration. Includes 2 Workers, 5 Reviewers, 1 NMS, and add-ons. Designed to support workflow validation, ingestion testing, and non-production testing activities.' },
+      { sku: 'NONPRODDISC03', family: 'Nuix Discover',          tier: 'No Ingestions', name: 'Nuix Discover - No Ingestions',                       list_price: 5000, description: 'Test environment replicating the core Nuix Discover configuration. Includes 5 reviewers and add-ons. Designed to support workflow validation, and non-production testing activities. Note: replicates the productions version of Nuix Discover.' },
+      { sku: 'NONPRODNEO01',  family: 'Nuix Neo',               tier: 'Standard',      name: 'Nuix Neo Test Environment – Standard',                list_price: 10000, description: 'Test environment replicating core Neo configuration. Includes 2 Workers, 2 Investigate seats, 1 Automate license, and 1 NLP license (where applicable). Designed for workflow and integration testing. With a maximum case size of 5GB (offline).' },
+      { sku: 'NONPRODNEO02',  family: 'Nuix Neo',               tier: 'Performance',   name: 'Nuix Neo Test Environment – Performance',             list_price: 50000, description: 'Test environment configured to approximately 25% of the customer’s production Neo environment. Designed for scaled performance, load testing, and realistic workflow validation. With a maximum case size of 5GB (offline).' },
+      { sku: 'NONPRODECC01',  family: 'Nuix ECC',               tier: 'Standard',      name: 'Nuix ECC Test Environment – Standard',                list_price: 5000, description: 'Test environment for ECC supporting up to 10 endpoints, allowing testing of endpoint collection and configuration.' },
+      { sku: 'NONPRODECC02',  family: 'Nuix ECC',               tier: 'Performance',   name: 'Nuix ECC Test Environment – Performance',             list_price: 20000, description: 'Test environment supporting approximately 25% of the customer’s production endpoints for scaled validation.' },
+      { sku: 'NONPRODADPT01', family: 'Nuix Adaptive Security', tier: 'Standard',      name: 'Nuix Adaptive Security Test Environment – Standard',  list_price: 5000, description: 'Test environment including 1 server and up to 10 endpoints for deployment and monitoring validation.' },
+      { sku: 'NONPRODADPT02', family: 'Nuix Adaptive Security', tier: 'Performance',   name: 'Nuix Adaptive Security Test Environment – Performance', list_price: 20000, description: 'Test environment configured to approximately 25% of production capacity for deployment, configuration, and monitoring validation.' }
+    ]
+  },
+
   consulting: {
     cslt300_price: 31310,
     cslt301_price: 46020,

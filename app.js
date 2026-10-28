@@ -38,12 +38,18 @@ const state = {
     byoGraphAutoSelected: false,
   },
   advantageServices: { implementationPackage: false, solutionImplementationPackage: false, componentLicenseExtension: '' },
-  discounts: { foundation: 0, aiSuite: 0, useCases: 0, enhanced: 0, consulting: 0, blended: 0 },
+  // Non Prod Licenses (Configure section 7) — selected SKUs, keyed by SKU code. Each is a
+  // simple yes/no (always 1 unit); a missing entry means not selected.
+  nonProd: { qty: {} },
+  discounts: { foundation: 0, aiSuite: 0, useCases: 0, enhanced: 0, nonProd: 0, consulting: 0, blended: 0 },
   targets:   { acv: '', tcv: '' },
   approvalNotes: '',
   valueWin:  { activeLevers: {}, inputs: {}, primaryUseCase: '' },
   partnerMargins: { bySku: {} },
-  currency: 'USD'
+  currency: 'USD',
+  // Bumped whenever a step is inserted, so a quote saved under an older numbering can be
+  // shifted onto the new step numbers when it's loaded (see migrateLoadedState).
+  stepLayout: 2
 };
 
 const INITIAL_STATE = JSON.parse(JSON.stringify(state));
@@ -75,9 +81,21 @@ function restoreState() {
     const saved = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (!saved) return false;
     Object.assign(state, JSON.parse(saved));
-    if (!state.partnerMargins?.bySku) state.partnerMargins = { bySku: {} };
+    migrateLoadedState();
     return true;
   } catch { return false; }
+}
+
+// Brings a restored or loaded quote up to date with the current state shape. Layout 1
+// predates the Non Prod Licenses step (14): Partner Margins and Quote summary were 14/15.
+function migrateLoadedState() {
+  if (!state.partnerMargins?.bySku) state.partnerMargins = { bySku: {} };
+  if (!state.nonProd?.qty) state.nonProd = { qty: {} };
+  if ((state.stepLayout || 1) < 2) {
+    if (state.currentStep >= 14) state.currentStep += 1;
+    if (state.maxStep     >= 14) state.maxStep     += 1;
+  }
+  state.stepLayout = INITIAL_STATE.stepLayout;
 }
 
 // Since state now survives a refresh, a page reload can no longer be used to
@@ -957,6 +975,20 @@ function discoverOnpremSkuRows(dc, nm) {
   return rows;
 }
 
+// Non Prod Licenses — one row per selected test-environment SKU. A SKU whose list_price
+// is still null in pricing.config.js is quoted at $0 and flagged "price TBC".
+function nonProdSkuRows() {
+  const qty = state.nonProd?.qty || {};
+  return cfg().non_prod.skus.filter(s => (qty[s.sku] || 0) > 0).map(s => ({
+    sku: s.sku, name: s.name, qty: 1, unit: 'Per unit/yr',
+    notes: s.list_price == null ? 'Price TBC' : '',
+    unitBaseUSD: s.list_price || 0, key: `nonProd_${s.sku}`
+  }));
+}
+function nonProdBaseUSD() {
+  return nonProdSkuRows().reduce((sum, r) => sum + r.unitBaseUSD * r.qty, 0);
+}
+
 // ─── Price calculations ───────────────────────────────────────────────────────
 function calcPrices() {
   const rm   = getRM();
@@ -1056,6 +1088,7 @@ function calcPrices() {
     aiSuite:    { label: 'AI Suite',                                 baseUSD: aiBase,    rm, autoDisc: adsc, salesDisc: (state.discounts.aiSuite    || 0) / 100 + blendedPct },
     useCases:   { label: 'Solutions Library',                  baseUSD: ucBase,    rm, autoDisc: adsc, salesDisc: (state.discounts.useCases   || 0) / 100 + blendedPct },
     enhanced:   { label: 'Add Ons',                                 baseUSD: ecBase,    rm, autoDisc: adsc, salesDisc: (state.discounts.enhanced   || 0) / 100 + blendedPct },
+    nonProd:    { label: 'Non Prod Licenses',                       baseUSD: nonProdBaseUSD(), rm, autoDisc: adsc, salesDisc: (state.discounts.nonProd || 0) / 100 + blendedPct },
     consulting: { label: 'Customisation & Consulting',              baseUSD: consBase,  rm: 1, autoDisc: 1, salesDisc: (state.discounts.consulting || 0) / 100 + blendedPct }
   };
 
@@ -2977,6 +3010,44 @@ function renderDiscover() {
     </div>`;
 }
 
+// Non Prod Licenses (Configure section 7) — test-environment licences for customers that
+// need a non-production instance. Any SKU can be chosen for now; business rules (e.g. only
+// offering Neo test environments on a Neo deal) can be layered on later.
+function renderNonProd() {
+  const skus = cfg().non_prod.skus;
+  const qty  = state.nonProd.qty;
+  const families = [...new Set(skus.map(s => s.family))];
+
+  const familyHtml = families.map(fam => {
+    const cards = skus.filter(s => s.family === fam).map(s => {
+      const sel = (qty[s.sku] || 0) > 0;
+      const price = s.list_price == null ? 'Price TBC' : `${fmt(s.list_price)}/unit/yr`;
+      const sizingNote = s.tier === 'Performance'
+        ? `<div style="font-size:11px;color:#6B7280;margin-top:6px">Sized at ~25% of what the customer buys for production &mdash; e.g. 40 production workers &rarr; 10 test workers.</div>`
+        : '';
+      return `
+        <div class="ec-card ${sel ? 'selected' : ''}">
+          <div class="ec-card-header">
+            <div class="ec-check ${sel ? 'checked' : ''}" data-np-toggle="${s.sku}"></div>
+            <div class="ec-name">${s.name}</div>
+          </div>
+          <div class="ec-desc">${s.description}</div>
+          ${sizingNote}
+          <div class="ec-price">${price} <span style="font-size:10px;font-weight:400;color:#6B7280">&middot; ${s.sku}</span></div>
+        </div>`;
+    }).join('');
+    return `<div class="ec-section-title">${fam}</div><div class="ec-grid">${cards}</div>`;
+  }).join('');
+
+  return `
+    <div class="card">
+      <div class="card-title">Layer 5 — Configure</div>
+      <h2>Non Prod Licenses <span class="chip">Optional</span></h2>
+      <p class="text-muted" style="margin-bottom:4px">Test environment licences for customers who need a non-production instance alongside production. Tick each one the customer needs.</p>
+      ${familyHtml}
+    </div>`;
+}
+
 
 function renderStep5() {
   const C    = cfg();
@@ -3261,7 +3332,7 @@ function renderVisualisation() {
 function renderStep7() {
   // Per-layer discounts are not user-editable; clear any stale values so only
   // the blended deal discount applies.
-  ['foundation','aiSuite','useCases','enhanced','consulting'].forEach(k => { state.discounts[k] = 0; });
+  ['foundation','aiSuite','useCases','enhanced','nonProd','consulting'].forEach(k => { state.discounts[k] = 0; });
 
   // Goal-seek: back-calculate blended discount from a target ACV or TCV.
   // TCV takes priority when both are supplied.
@@ -3492,6 +3563,9 @@ function renderStep7() {
   if (state.advantageServices?.solutionImplementationPackage)
     skuRows.push({ section: 'consulting', sku: 'CSLT301', name: 'Nuix Neo Solution Implementation Package', qty: 1, unit: 'Per instance', layer: 'consulting', unitBaseUSD: C.consulting.cslt301_price, year1Only: true });
 
+  // Section 6 — Non Prod Licenses
+  nonProdSkuRows().forEach(r => skuRows.push({ section: 'nonProd', layer: 'nonProd', ...r, name: r.notes ? `${r.name} (${r.notes})` : r.name }));
+
   // ── Compute per-row net prices ────────────────────────────────────────────────
   const skuRowsWithPrices = skuRows.map(r => {
     const net = unitNetForSummary(r.unitBaseUSD, r.layer);
@@ -3508,6 +3582,7 @@ function renderStep7() {
     { key: 'aiSuite',    label: 'AI Suite',                   badge: '2' },
     { key: 'enhanced',   label: 'Add Ons',                    badge: '3' },
     { key: 'consulting', label: 'Advantage & Implementation', badge: '4' },
+    { key: 'nonProd',    label: 'Non Prod Licenses',          badge: '5' },
   ];
   const FIXED_COLS = 4; // Product | SKU | Qty | Unit
   const totalCols  = FIXED_COLS + periods.length;
@@ -3770,7 +3845,7 @@ function saveCurrentStep() {
     else saveRenewalStep();
   }
   if (state.currentStep === 6)  saveStep2();
-  if (state.currentStep === 14) savePartnerMargins();
+  if (state.currentStep === 15) savePartnerMargins();
 }
 
 function validateStep() {
@@ -3962,6 +4037,9 @@ function buildSkuRows() {
     rows.push({ sku: 'CSLT301', name: 'Nuix Neo Solution Implementation Package', qty: 1, unit: 'Per instance', notes: 'Year 1 only', layer: 'consulting', unitBaseUSD: C.consulting.cslt301_price, year1Only: true, key: 'cons_solutionImplementation', category: 'nuixServices' });
   }
 
+  // ── Non Prod Licenses ────────────────────────────────────────────────────────
+  nonProdSkuRows().forEach(r => rows.push({ layer: 'nonProd', category: 'nuixSoftware', ...r }));
+
   return rows;
 }
 
@@ -4138,11 +4216,11 @@ function renderPartnerMargins() {
 
 function showStep(n, noScroll = false) {
   state.currentStep = n;
-  const renders = { 1: renderStep1, 2: renderProductSuite, 3: renderContractStructure, 4: renderPricingModel, 5: renderStepE, 6: renderValueWin, 7: renderStep2, 9: renderStep3, 10: renderVisualisation, 11: renderDiscover, 12: renderStep5, 13: renderStepAdvantage, 14: renderPartnerMargins, 15: renderStep7 };
+  const renders = { 1: renderStep1, 2: renderProductSuite, 3: renderContractStructure, 4: renderPricingModel, 5: renderStepE, 6: renderValueWin, 7: renderStep2, 9: renderStep3, 10: renderVisualisation, 11: renderDiscover, 12: renderStep5, 13: renderStepAdvantage, 14: renderNonProd, 15: renderPartnerMargins, 16: renderStep7 };
   $('step-content').innerHTML = renders[n]();
   const isRenewalBuilder = n === 5 && state.customer.dealType === 'Renewal';
   const mainEl = document.querySelector('main');
-  mainEl.classList.toggle('wide', n === 15 || isRenewalBuilder);
+  mainEl.classList.toggle('wide', n === 16 || isRenewalBuilder);
   // Suppress transition so the inline override takes effect immediately
   mainEl.style.transition = 'none';
   mainEl.style.maxWidth = isRenewalBuilder ? '920px' : '';
@@ -4169,12 +4247,12 @@ function renderStepE() {
 function nextStep() {
   saveCurrentStep();
   if (!validateStep()) return;
-  if (state.currentStep < 15) {
+  if (state.currentStep < 16) {
     let next = state.currentStep + 1;
     if (next === 2)                                  next = 3;
     if (next === 5  && isUpsellBuilderSkipped())    next = 6;
     if (next === 8)                                  next = 9; // Solutions Library step removed — bundled automatically now
-    if (next === 14 && isPartnerMarginsSkipped())   next = 15;
+    if (next === 15 && isPartnerMarginsSkipped())   next = 16;
     state.maxStep = Math.max(state.maxStep, next);
     showStep(next);
   }
@@ -4187,7 +4265,7 @@ function prevStep() {
     if (prev === 2)                                prev = 1;
     if (prev === 5  && isUpsellBuilderSkipped())  prev = 4;
     if (prev === 8)                                prev = 7; // Solutions Library step removed — bundled automatically now
-    if (prev === 14 && isPartnerMarginsSkipped()) prev = 13;
+    if (prev === 15 && isPartnerMarginsSkipped()) prev = 14;
     showStep(prev);
   }
 }
@@ -4196,7 +4274,7 @@ function updateLiveQuote() {
   const panel = $('quote-panel');
   if (!panel) return;
 
-  if (state.currentStep === 15) {
+  if (state.currentStep === 16) {
     panel.style.display = '';
     panel.innerHTML = renderROIPanel();
     return;
@@ -4219,7 +4297,7 @@ function updateLiveQuote() {
   const cust     = state.customer;
   const years    = Math.max(getContractYears(), 1/12);
   const isPOC    = cust.isPOC;
-  const layerStepGate = { foundation: 7, aiSuite: 8, useCases: 9, enhanced: 11, consulting: 14 };
+  const layerStepGate = { foundation: 7, aiSuite: 8, useCases: 9, enhanced: 11, consulting: 14, nonProd: 14 };
   const totNet   = Object.entries(layers).reduce((s, [k, l]) => s + (state.currentStep >= (layerStepGate[k] || 6) ? l.net : 0), 0);
   const qpPeriods   = getContractPeriods();
   // The Implementation Packages are one-time Year 1 charges baked into the consulting layer's
@@ -4247,10 +4325,10 @@ function updateLiveQuote() {
   ].filter(Boolean).join('');
 
   // Layer rows — only show layers whose config step has been reached
-  // Steps: 7=Foundation, 9=AI Suite (also determines the bundled Solutions Library), 11=Discover/Enhanced, 13=Advantage & Implementation, 14=Consulting
-  const layerMinStep = { foundation: 6, aiSuite: 7, useCases: 7, enhanced: 11, consulting: 14 };
-  const layerOrder  = ['foundation', 'aiSuite', 'useCases', 'enhanced', 'consulting'];
-  const layerLabels = { foundation: 'Nuix Neo Foundation', aiSuite: 'AI Suite', useCases: 'Solutions Library', enhanced: 'Add Ons', consulting: 'Customisation & Consulting' };
+  // Steps: 7=Foundation, 9=AI Suite (also determines the bundled Solutions Library), 11=Discover/Enhanced, 13=Advantage & Implementation (shown once past it), 14=Non Prod Licenses
+  const layerMinStep = { foundation: 6, aiSuite: 7, useCases: 7, enhanced: 11, consulting: 14, nonProd: 14 };
+  const layerOrder  = ['foundation', 'aiSuite', 'useCases', 'enhanced', 'consulting', 'nonProd'];
+  const layerLabels = { foundation: 'Nuix Neo Foundation', aiSuite: 'AI Suite', useCases: 'Solutions Library', enhanced: 'Add Ons', consulting: 'Customisation & Consulting', nonProd: 'Non Prod Licenses' };
 
   const layerRows = layerOrder.map(key => {
     const l = layers[key];
@@ -4349,15 +4427,15 @@ function updateProgress() {
     // the AI Suite step. Keep the blank slot so the remaining labels stay aligned
     // to their step numbers (mirrors the '' placeholder at index 1 for skipped step 2).
     'Nuix Neo Foundation', '', 'AI Suite', 'Visualisation', 'Discover', 'Add Ons', 'Advantage & Implementation',
-    'Partner Margins', 'Quote summary'
+    'Non Prod Licenses', 'Partner Margins', 'Quote summary'
   ];
   const groups = [
     { label: 'Setup',          steps: isUpsellBuilderSkipped() ? [1, 3, 4] : [1, 3, 4, 5] },
     { label: 'Customer Value', steps: [6] },
-    { label: 'Configure',      steps: [7, 9, 10, 11, 12, 13] },
-    { label: 'Finalise',       steps: isPartnerMarginsSkipped() ? [15] : [14, 15] }
+    { label: 'Configure',      steps: [7, 9, 10, 11, 12, 13, 14] },
+    { label: 'Finalise',       steps: isPartnerMarginsSkipped() ? [16] : [15, 16] }
   ];
-  const stepDot = { 1:'A', 3:'C', 4:'D', 5:'E', 6:'★', 7:'1', 9:'2', 10:'3', 11:'4', 12:'5', 13:'6', 14:'◆', 15:'◈' };
+  const stepDot = { 1:'A', 3:'C', 4:'D', 5:'E', 6:'★', 7:'1', 9:'2', 10:'3', 11:'4', 12:'5', 13:'6', 14:'7', 15:'◆', 16:'◈' };
   const nav = $('sidebar-nav');
   if (!nav) return;
   nav.innerHTML = groups.map(g => {
@@ -4392,11 +4470,11 @@ function jumpToStep(n) {
 
 function updateNavButtons() {
   const isPricingComingSoon = false;
-  const totalSteps          = (isUpsellBuilderSkipped() ? 12 : 13) + (isPartnerMarginsSkipped() ? 0 : 1);
+  const totalSteps          = (isUpsellBuilderSkipped() ? 13 : 14) + (isPartnerMarginsSkipped() ? 0 : 1);
   $('btn-prev').style.visibility = state.currentStep > 1 ? '' : 'hidden';
-  $('btn-next').style.display = (state.currentStep === 15 || isPricingComingSoon) ? 'none' : '';
+  $('btn-next').style.display = (state.currentStep === 16 || isPricingComingSoon) ? 'none' : '';
   const lastSetupStep = isUpsellBuilderSkipped() ? 4 : 5;
-  $('btn-next').textContent   = state.currentStep === lastSetupStep ? 'Customer Value →' : state.currentStep === 6 ? 'Configure →' : state.currentStep === 13 ? 'Review Pricing →' : 'Next →';
+  $('btn-next').textContent   = state.currentStep === lastSetupStep ? 'Customer Value →' : state.currentStep === 6 ? 'Configure →' : state.currentStep === 14 ? 'Review Pricing →' : 'Next →';
   $('step-count').style.display = 'none';
 }
 
@@ -4788,6 +4866,16 @@ function bindStepEvents() {
         syncSolutionsLibraryInclusion();
         showStep(state.currentStep, true);
       }
+    });
+  });
+
+  // Non Prod Licenses: each SKU is on (1 unit) or off
+  document.querySelectorAll('[data-np-toggle]').forEach(chk => {
+    chk.addEventListener('click', () => {
+      const sku = chk.dataset.npToggle;
+      if (state.nonProd.qty[sku]) delete state.nonProd.qty[sku];
+      else state.nonProd.qty[sku] = 1;
+      showStep(state.currentStep, true);
     });
   });
 
@@ -5208,7 +5296,7 @@ function generateFullQuote() {
 
   const secondaries = state.useCases.secondary;
 
-  const layerOrder = ['foundation', 'aiSuite', 'useCases', 'enhanced', 'consulting'];
+  const layerOrder = ['foundation', 'aiSuite', 'useCases', 'enhanced', 'consulting', 'nonProd'];
   const colCount   = 1 + yearCount;
   const amtSpan    = yearCount > 1 ? ` colspan="${yearCount}"` : '';
   const layerRows  = layerOrder.map(key => {
@@ -5268,7 +5356,8 @@ function generateFullQuote() {
     tierName ? `<li><strong>Foundation:</strong> ${tierName}` + (state.foundation.boosters.workers > 0 || state.foundation.boosters.volume > 0 || state.foundation.boosters.users > 0 ? ' + boosters' : '') + `</li>` : '',
     aiSelected.length ? `<li><strong>AI Suite:</strong> ${aiSelected.join(', ')}</li>` : '',
     !state.useCases.foundationOnly ? `<li><strong>Solutions Library:</strong> included at no charge (bundled with Enrich/Semantic Search/Transcription)</li>` : '',
-    ecSelected.length ? `<li><strong>Enhanced capabilities:</strong> ${ecSelected.join(', ')}</li>` : ''
+    ecSelected.length ? `<li><strong>Enhanced capabilities:</strong> ${ecSelected.join(', ')}</li>` : '',
+    nonProdSkuRows().length ? `<li><strong>Non Prod Licenses:</strong> ${nonProdSkuRows().map(r => r.name).join(', ')}</li>` : ''
   ].filter(Boolean).join('');
 
   const html = `<!DOCTYPE html>
@@ -5819,6 +5908,7 @@ function generateSKUOrder() {
     { key: 'useCases',   label: 'Solutions Library'           },
     { key: 'enhanced',   label: 'Enhanced Capability'         },
     { key: 'consulting', label: 'Consulting & Services'       },
+    { key: 'nonProd',    label: 'Non Prod Licenses'           },
   ];
   const totNetY1      = Object.values(layers).reduce((s, l) => s + l.net, 0);
   const totListUSD    = Object.values(layers).reduce((s, l) => s + l.baseUSD, 0);
@@ -5916,7 +6006,7 @@ function generateSKUOrder() {
   const ceilingPctSku = getMaxThreshold() * 100;
   const discNotes = [`Discount ceiling: ${ceilingPctSku.toFixed(1)}% off list before CEO approval`];
   const salesDiscNotes = Object.entries(layers).filter(([,l]) => l.salesDisc > 0.001).map(([k, l]) => {
-    const lbl = { foundation: 'Foundation', aiSuite: 'AI Suite', useCases: 'Use Cases', enhanced: 'Enhanced', consulting: 'Consulting' }[k] || k;
+    const lbl = { foundation: 'Foundation', aiSuite: 'AI Suite', useCases: 'Use Cases', enhanced: 'Enhanced', consulting: 'Consulting', nonProd: 'Non Prod' }[k] || k;
     return `${lbl} ${fmtpct(l.salesDisc)} sales disc.`;
   });
 
@@ -6270,6 +6360,8 @@ function generateBudgetQuote(variant) {
   if (state.advantageServices?.solutionImplementationPackage) {
     rows.push({ sku: 'CSLT301', name: 'Nuix Neo Solution Implementation Package', qty: 1, unit: 'Per instance', layer: 'consulting', unitBaseUSD: C.consulting.cslt301_price, year1Only: true });
   }
+  // 7 — Non Prod Licenses
+  nonProdSkuRows().forEach(r => rows.push({ layer: 'nonProd', ...r, name: r.notes ? `${r.name} (${r.notes})` : r.name }));
 
   // ── Pre-compute net prices per row per period ─────────────────────────────────
   const rowsWithPrices = rows.map(r => {
@@ -7024,7 +7116,8 @@ function showPriceList() {
     poc:    C.poc_price_per_month,
     cons:   C.consulting.roles,
     cslt300: C.consulting.cslt300_price,
-    cslt301: C.consulting.cslt301_price
+    cslt301: C.consulting.cslt301_price,
+    nonProd: C.non_prod.skus
   });
 
   const html = `<!DOCTYPE html>
@@ -7339,6 +7432,15 @@ function showPriceList() {
     ),
   ].join(''));
 
+  // Non Prod Licenses — list_price is null until pricing is confirmed, shown as TBC
+  html += sect('Layer 5 — Non Prod Licenses', null, D.nonProd.map(s =>
+    '<tr>' + lbl(s.name, s.description)
+      + pc(s.list_price == null
+        ? '<span style="font-size:12px;color:#6b7280">Price TBC · ' + s.sku + '</span>'
+        : inp(s.list_price, 'non_prod.skus', '/unit/yr · ' + s.sku))
+      + '</tr>'
+  ).join(''));
+
 
   document.getElementById('content').innerHTML = html;
   refresh();
@@ -7490,6 +7592,7 @@ function showSKUListPage() {
     ['Layer 3 – Third Party','VERTSCPXLG','Veritone – Transcription 135,000 hrs (X-Large)','Per instance/yr','$220,000',''],
     ['Layer 3 – Third Party','VERTSLTLAN1','Veritone – Translation (First Language)','Per language/yr','$27,500',''],
     ['Layer 3 – Third Party','VERTSLTLANS','Veritone – Translation (Additional Language)','Per language/yr','$5,500',''],
+    ...cfg().non_prod.skus.map(s => ['Layer 5 – Non Prod Licenses', s.sku, s.name, 'Per unit/yr', s.list_price == null ? 'TBC' : '$' + s.list_price.toLocaleString('en-US'), 'Test environment']),
   ];
 
   const layerColors = {
@@ -7500,6 +7603,7 @@ function showSKUListPage() {
     'Layer 3 – Visualisation': '#3b7dd1',
     'Layer 3 – Third Party': '#2666a8',
     'Layer 4 – Advantage & Implementation': '#0d4080',
+    'Layer 5 – Non Prod Licenses': '#5b6b85',
     'Other': '#475569',
   };
 
@@ -9277,7 +9381,7 @@ function onLoadQuoteFile(event) {
         return;
       }
       Object.assign(state, parsed.state);
-      if (!state.partnerMargins?.bySku) state.partnerMargins = { bySku: {} };
+      migrateLoadedState();
       showStep(state.currentStep || 1);
     } catch {
       alert('Could not read the file. Please make sure it is a valid quote file.');
