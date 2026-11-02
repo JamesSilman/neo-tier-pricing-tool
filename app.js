@@ -7550,8 +7550,8 @@ function showPriceList() {
 
 function showSKUListPage() {
   const skuRows = [
-    ['Layer 1 – Nuix Neo Foundation','NEO007S','Nuix Neo Foundation – Standard','Per year','$155,000','10 workers · 50TB · 10 users · 100 training hrs · Advantage Bronze'],
-    ['Layer 1 – Nuix Neo Foundation','NEO007MD','Nuix Neo Foundation – Accelerate','Per year','$400,000','30 workers · 150TB · 30 users · 300 training hrs · Advantage Bronze'],
+    ['Layer 1 – Nuix Neo Foundation','NEO007S','Nuix Neo Foundation – Standard','Per year','$155,000','10 workers · 10 users · 100 training hrs · Advantage Bronze'],
+    ['Layer 1 – Nuix Neo Foundation','NEO007MD','Nuix Neo Foundation – Accelerate','Per year','$400,000','30 workers · 30 users · 300 training hrs · Advantage Bronze'],
     ['Layer 1 – Nuix Neo Foundation','NEO007L','Nuix Neo Foundation – Performance','Per year','$720,000','60 workers · 60 users · 600 training hrs · Advantage Silver'],
     ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CS','Nuix Neo Foundation – Standard (Consumption)','Per year','$155,000','10TB · 10 users · 100 training hrs · Advantage Bronze'],
     ['Layer 1 – Nuix Neo Foundation (Consumption)','NEO007CMD','Nuix Neo Foundation – Accelerate (Consumption)','Per year','$400,000','40TB · 30 users · 300 training hrs · Advantage Bronze'],
