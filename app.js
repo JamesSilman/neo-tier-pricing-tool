@@ -7559,8 +7559,6 @@ function showSKUListPage() {
     ['Layer 1 – Foundation Booster','NEOBWS','Additional Worker – Standard','Per worker/yr','$31,000',''],
     ['Layer 1 – Foundation Booster','NEOBWMD','Additional Worker – Accelerate','Per worker/yr','$27,000',''],
     ['Layer 1 – Foundation Booster','NEOBWL','Additional Worker – Performance','Per worker/yr','$24,000',''],
-    ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-L','Additional Volume – Standard','Per TB/yr','$6,000',''],
-    ['Layer 1 – Foundation Booster','NEO-BOOST-VOL-C','Additional Volume – Accelerate','Per TB/yr','$5,333',''],
     ['Layer 1 – Foundation Booster','NEOBRS','Additional Concurrent User – Standard','Per user/yr','$9,000',''],
     ['Layer 1 – Foundation Booster','NEOBRMD','Additional Concurrent User – Accelerate','Per user/yr','$6,000',''],
     ['Layer 1 – Foundation Booster','NEOBRL','Additional Concurrent User – Performance','Per user/yr','$3,000',''],
