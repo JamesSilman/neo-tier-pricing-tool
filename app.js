@@ -38,7 +38,7 @@ const state = {
     byoGraphAutoSelected: false,
   },
   advantageServices: { implementationPackage: false, solutionImplementationPackage: false, componentLicenseExtension: '' },
-  // Non Prod Licenses (Configure section 7) — selected SKUs, keyed by SKU code. Each is a
+  // Test Environments (Configure section 7) — selected SKUs, keyed by SKU code. Each is a
   // simple yes/no (always 1 unit); a missing entry means not selected.
   nonProd: { qty: {} },
   discounts: { foundation: 0, aiSuite: 0, useCases: 0, enhanced: 0, nonProd: 0, consulting: 0, blended: 0 },
@@ -87,7 +87,7 @@ function restoreState() {
 }
 
 // Brings a restored or loaded quote up to date with the current state shape. Layout 1
-// predates the Non Prod Licenses step (14): Partner Margins and Quote summary were 14/15.
+// predates the Test Environments step (14): Partner Margins and Quote summary were 14/15.
 function migrateLoadedState() {
   if (!state.partnerMargins?.bySku) state.partnerMargins = { bySku: {} };
   if (!state.nonProd?.qty) state.nonProd = { qty: {} };
@@ -642,22 +642,50 @@ function resetFoundationRequirements() {
   showStep(state.currentStep, true);
 }
 
-// Re-applies the cheapest-tier recommendation, clearing any manual tier override —
+// Re-applies the best-fit tier recommendation, clearing any manual tier override —
 // used by the "Reset to recommended tier" link on the tier-switch pills.
 function resetToRecommendedTier() {
   state.foundation.tierManuallySet = false;
-  const w = state.foundation.workersNeeded || 0;
-  const u = state.foundation.usersNeeded   || 0;
-  const rec = recommendTier(w, 0, u);
-  if (rec) {
-    state.foundation.selectedTier     = rec.tier;
-    state.foundation.boosters.workers = rec.ew;
+  const u = state.foundation.usersNeeded || 0;
+  if (state.pricingModel === 'consumption') {
+    const tb   = parseFloat(state.foundation.tbPerYear) || 0;
+    const tier = bestFitConsumptionTier(tb);
+    const t    = cfg().consumption_tiers[tier];
+    state.foundation.selectedTier    = tier;
+    state.foundation.boosters.volume = Math.max(0, tb - t.included_tb);
+    state.foundation.boosters.users  = Math.max(0, u - t.users);
+    $('consumption-pricing-area').innerHTML = renderConsumptionPricing();
+  } else {
+    const w    = state.foundation.workersNeeded || 0;
+    const tier = bestFitTier(w);
+    const t    = cfg().foundation_tiers[tier];
+    state.foundation.selectedTier     = tier;
+    state.foundation.boosters.workers = Math.max(0, w - t.workers);
     state.foundation.boosters.volume  = 0;
-    state.foundation.boosters.users   = rec.eu;
+    state.foundation.boosters.users   = Math.max(0, u - t.users);
+    $('tier-rec-area').innerHTML = renderTierRecommendation();
   }
-  $('tier-rec-area').innerHTML = renderTierRecommendation();
   bindBoosterEvents();
   updateLiveQuote();
+}
+
+// "Best fit" tier — the largest tier whose included capacity doesn't exceed the
+// requirement, so tier + boosters match it exactly with no unused included capacity
+// (e.g. 24 workers → Standard 10 + 14 boosters, not Accelerate with 6 spare). Below the
+// smallest tier's capacity it falls back to Light. May cost more than the cheapest tier.
+function bestFitTier(w) {
+  const tiers = cfg().foundation_tiers;
+  let fit = 'light';
+  for (const key of ['light', 'core', 'rapid']) if (tiers[key].workers <= w) fit = key;
+  return fit;
+}
+
+// Consumption-model equivalent of bestFitTier(), keyed on TB/yr.
+function bestFitConsumptionTier(tb) {
+  const tiers = cfg().consumption_tiers;
+  let fit = 'light';
+  for (const key of ['light', 'core', 'rapid']) if (tiers[key].included_tb <= tb) fit = key;
+  return fit;
 }
 
 function recommendTier(w, v, u) {
@@ -975,7 +1003,7 @@ function discoverOnpremSkuRows(dc, nm) {
   return rows;
 }
 
-// Non Prod Licenses — one row per selected test-environment SKU. A SKU whose list_price
+// Test Environments — one row per selected test-environment SKU. A SKU whose list_price
 // is still null in pricing.config.js is quoted at $0 and flagged "price TBC".
 function nonProdSkuRows() {
   const qty = state.nonProd?.qty || {};
@@ -1088,7 +1116,7 @@ function calcPrices() {
     aiSuite:    { label: 'AI Suite',                                 baseUSD: aiBase,    rm, autoDisc: adsc, salesDisc: (state.discounts.aiSuite    || 0) / 100 + blendedPct },
     useCases:   { label: 'Solutions Library',                  baseUSD: ucBase,    rm, autoDisc: adsc, salesDisc: (state.discounts.useCases   || 0) / 100 + blendedPct },
     enhanced:   { label: 'Add Ons',                                 baseUSD: ecBase,    rm, autoDisc: adsc, salesDisc: (state.discounts.enhanced   || 0) / 100 + blendedPct },
-    nonProd:    { label: 'Non Prod Licenses',                       baseUSD: nonProdBaseUSD(), rm, autoDisc: adsc, salesDisc: (state.discounts.nonProd || 0) / 100 + blendedPct },
+    nonProd:    { label: 'Test Environments',                       baseUSD: nonProdBaseUSD(), rm, autoDisc: adsc, salesDisc: (state.discounts.nonProd || 0) / 100 + blendedPct },
     consulting: { label: 'Customisation & Consulting',              baseUSD: consBase,  rm: 1, autoDisc: 1, salesDisc: (state.discounts.consulting || 0) / 100 + blendedPct }
   };
 
@@ -2366,15 +2394,71 @@ function renderConsumptionPricing() {
     }
   }
 
+  // Tier-switch pills — cost every tier against the raw requirement (not just the
+  // selected one) so the user can see, and knowingly override, the cheapest pick.
+  const reqTB = parseFloat(state.foundation.tbPerYear) || 0;
+  const reqU  = state.foundation.usersNeeded || 0;
+  const tierCompare = ['light', 'core', 'rapid'].map(key => {
+    const tk  = C.consumption_tiers[key];
+    const bk  = C.foundation_boosters[key];
+    const etb = Math.max(0, reqTB - tk.included_tb);
+    const eu  = Math.max(0, reqU - tk.users);
+    return { key, t: tk, etb, eu, cost: tk.price + etb * tk.tb_booster_rate + eu * bk.user };
+  });
+  const cheapestTierKey = tierCompare.reduce((a, c) => c.cost < a.cost ? c : a).key;
+  // Before any requirement is entered "cheapest" is meaningless (Light always wins at zero).
+  const hasRequirement = reqTB > 0 || reqU > 0;
+  // Best fit (tier + boosters match the TB requirement exactly) is the default pick;
+  // cheapest is "Best Value". Both can land on the same tier — Best Fit then wins the badge.
+  const bestFitKey = reqTB > 0 ? bestFitConsumptionTier(reqTB) : cheapestTierKey;
+
+  const tierPillsHtml = !hasRequirement ? '' : `
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      ${tierCompare.map(tc => {
+        const isSel = tc.key === tier;
+        const isFit = reqTB > 0 && tc.key === bestFitKey;
+        const isRec = tc.key === cheapestTierKey;
+        const tbLine  = tc.etb > 0 ? `${tc.t.included_tb} TB + ${tc.etb} boosted = ${tc.t.included_tb + tc.etb}` : `${tc.t.included_tb} TB included`;
+        const userLine = tc.eu  > 0 ? `${tc.t.users} users + ${tc.eu} boosted = ${tc.t.users + tc.eu}`          : `${tc.t.users} users included`;
+        return `
+        <div class="tier-switch-pill" data-tier-switch="${tc.key}" style="cursor:pointer;flex:1;min-width:150px;padding:10px 14px;border-radius:10px;border:1.5px solid rgba(255,255,255,${isSel ? '0.85' : '0.25'});background:rgba(255,255,255,${isSel ? '0.18' : '0.06'})">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="font-size:13px;font-weight:700">${tc.t.name.replace('NEO – ', '')}</span>
+            ${isFit ? `<span style="font-size:9px;font-weight:700;background:#EBF0FF;color:#003080;padding:2px 6px;border-radius:10px;letter-spacing:0.3px">BEST FIT</span>`
+              : isRec ? `<span style="font-size:9px;font-weight:700;background:#EBF0FF;color:#003080;padding:2px 6px;border-radius:10px;letter-spacing:0.3px">BEST VALUE</span>` : ''}
+          </div>
+          <div style="font-size:16px;font-weight:800">${fmt(tc.cost * rm * autoD)}</div>
+          <div style="font-size:11px;opacity:0.65;margin-top:4px">${tbLine}</div>
+          <div style="font-size:11px;opacity:0.65">${userLine}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="font-size:11px;opacity:0.55;margin:-10px 0 16px">Compares base tier + capacity boosters only — support, training and other add-ons are priced below.</div>`;
+
+  const tierOverrideNote = (hasRequirement && tier !== bestFitKey) ? (() => {
+    const rec  = tierCompare.find(tc => tc.key === bestFitKey);
+    const cur  = tierCompare.find(tc => tc.key === tier);
+    const diff = (cur.cost - rec.cost) * rm * autoD;
+    const blendedRate = Math.round(t.price / t.included_tb);
+    return `
+      <div style="margin-bottom:16px;font-size:12px;line-height:1.6;opacity:0.85">
+        You've chosen <strong>${t.name.replace('NEO – ', '')}</strong> — ${diff >= 0 ? `${fmt(diff)}/yr more than` : `${fmt(-diff)}/yr less than`} ${rec.t.name.replace('NEO – ', '')} (best fit).
+        Boosters on ${t.name.replace('NEO – ', '')} run ${fmt(t.tb_booster_rate * rm * autoD)}/TB, above its ~${fmt(blendedRate * rm * autoD)}/TB included rate.
+        <span style="cursor:pointer;text-decoration:underline;font-weight:600" onclick="resetToRecommendedTier()">Reset to recommended tier</span>
+      </div>`;
+  })() : '';
+
   return `
     <div class="tier-rec">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
         <div>
-          <div class="tier-rec-label">Recommended tier</div>
+          <div class="tier-rec-label">${(!hasRequirement || tier === bestFitKey) ? 'Recommended tier' : 'Selected tier'}</div>
           <div class="tier-rec-name">${t.name}</div>
         </div>
         <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="resetFoundationRequirements()">↺ Reset</button>
       </div>
+      ${tierPillsHtml}
+      ${tierOverrideNote}
       <div class="tier-rec-rows">
         <span class="tier-rec-row" style="font-size:20px;font-weight:800;color:#fff;opacity:1;line-height:1">${t.included_tb + bst.volume} <span style="font-size:13px;font-weight:600;opacity:0.8">TB/yr</span></span>
         <span style="opacity:0.2;font-size:18px;line-height:1">|</span>
@@ -2449,11 +2533,15 @@ function renderTierRecommendation() {
   // zero workers) — the step's own default (Core, before input) would otherwise look
   // like a spurious override. Only compare once there's a real requirement to size against.
   const hasRequirement = reqW > 0 || reqU > 0;
+  // Best fit (tier + boosters match the worker requirement exactly) is the default pick;
+  // cheapest is "Best Value". Both can land on the same tier — Best Fit then wins the badge.
+  const bestFitKey = reqW > 0 ? bestFitTier(reqW) : cheapestTierKey;
 
   const tierPillsHtml = !hasRequirement ? '' : `
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
       ${tierCompare.map(tc => {
         const isSel = tc.key === tier;
+        const isFit = reqW > 0 && tc.key === bestFitKey;
         const isRec = tc.key === cheapestTierKey;
         const workerLine = tc.ew > 0 ? `${tc.t.workers} workers + ${tc.ew} boosted = ${tc.t.workers + tc.ew}` : `${tc.t.workers} workers included`;
         const userLine   = tc.eu > 0 ? `${tc.t.users} users + ${tc.eu} boosted = ${tc.t.users + tc.eu}`     : `${tc.t.users} users included`;
@@ -2461,7 +2549,8 @@ function renderTierRecommendation() {
         <div class="tier-switch-pill" data-tier-switch="${tc.key}" style="cursor:pointer;flex:1;min-width:150px;padding:10px 14px;border-radius:10px;border:1.5px solid rgba(255,255,255,${isSel ? '0.85' : '0.25'});background:rgba(255,255,255,${isSel ? '0.18' : '0.06'})">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
             <span style="font-size:13px;font-weight:700">${tc.t.name.replace('NEO – ', '')}</span>
-            ${isRec ? `<span style="font-size:9px;font-weight:700;background:#EBF0FF;color:#003080;padding:2px 6px;border-radius:10px;letter-spacing:0.3px">BEST VALUE</span>` : ''}
+            ${isFit ? `<span style="font-size:9px;font-weight:700;background:#EBF0FF;color:#003080;padding:2px 6px;border-radius:10px;letter-spacing:0.3px">BEST FIT</span>`
+              : isRec ? `<span style="font-size:9px;font-weight:700;background:#EBF0FF;color:#003080;padding:2px 6px;border-radius:10px;letter-spacing:0.3px">BEST VALUE</span>` : ''}
           </div>
           <div style="font-size:16px;font-weight:800">${fmt(tc.cost * rm * autoD)}</div>
           <div style="font-size:11px;opacity:0.65;margin-top:4px">${workerLine}</div>
@@ -2471,16 +2560,15 @@ function renderTierRecommendation() {
     </div>
     <div style="font-size:11px;opacity:0.55;margin:-10px 0 16px">Compares base tier + capacity boosters only — support, training and other add-ons are priced below.</div>`;
 
-  const tierOverrideNote = (hasRequirement && tier !== cheapestTierKey) ? (() => {
-    const rec  = tierCompare.find(tc => tc.key === cheapestTierKey);
+  const tierOverrideNote = (hasRequirement && tier !== bestFitKey) ? (() => {
+    const rec  = tierCompare.find(tc => tc.key === bestFitKey);
     const cur  = tierCompare.find(tc => tc.key === tier);
     const diff = (cur.cost - rec.cost) * rm * autoD;
     const blendedRate = Math.round(t.price / t.workers);
     return `
       <div style="margin-bottom:16px;font-size:12px;line-height:1.6;opacity:0.85">
-        You've chosen <strong>${t.name.replace('NEO – ', '')}</strong> — ${fmt(diff)}/yr more than ${rec.t.name.replace('NEO – ', '')}.
-        Boosters on ${t.name.replace('NEO – ', '')} run ${fmt(b.worker * rm * autoD)}/worker, above its ~${fmt(blendedRate * rm * autoD)}/worker included rate —
-        some teams still prefer it for a lighter services package or to cap customer throughput.
+        You've chosen <strong>${t.name.replace('NEO – ', '')}</strong> — ${diff >= 0 ? `${fmt(diff)}/yr more than` : `${fmt(-diff)}/yr less than`} ${rec.t.name.replace('NEO – ', '')} (best fit).
+        Boosters on ${t.name.replace('NEO – ', '')} run ${fmt(b.worker * rm * autoD)}/worker, above its ~${fmt(blendedRate * rm * autoD)}/worker included rate.
         <span style="cursor:pointer;text-decoration:underline;font-weight:600" onclick="resetToRecommendedTier()">Reset to recommended tier</span>
       </div>`;
   })() : '';
@@ -2622,7 +2710,7 @@ function renderTierRecommendation() {
     <div class="tier-rec">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
         <div>
-          <div class="tier-rec-label">${(!hasRequirement || tier === cheapestTierKey) ? 'Recommended tier' : 'Selected tier'}</div>
+          <div class="tier-rec-label">${(!hasRequirement || tier === bestFitKey) ? 'Recommended tier' : 'Selected tier'}</div>
           <div class="tier-rec-name">${t.name}</div>
         </div>
         <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="resetFoundationRequirements()">↺ Reset</button>
@@ -3010,7 +3098,7 @@ function renderDiscover() {
     </div>`;
 }
 
-// Non Prod Licenses (Configure section 7) — test-environment licences for customers that
+// Test Environments (Configure section 7) — test-environment licences for customers that
 // need a non-production instance. Any SKU can be chosen for now; business rules (e.g. only
 // offering Neo test environments on a Neo deal) can be layered on later.
 function renderNonProd() {
@@ -3042,7 +3130,7 @@ function renderNonProd() {
   return `
     <div class="card">
       <div class="card-title">Layer 5 — Configure</div>
-      <h2>Non Prod Licenses <span class="chip">Optional</span></h2>
+      <h2>Test Environments <span class="chip">Optional</span></h2>
       <p class="text-muted" style="margin-bottom:4px">Test environment licences for customers who need a non-production instance alongside production. Tick each one the customer needs.</p>
       ${familyHtml}
     </div>`;
@@ -3563,7 +3651,7 @@ function renderStep7() {
   if (state.advantageServices?.solutionImplementationPackage)
     skuRows.push({ section: 'consulting', sku: 'CSLT301', name: 'Nuix Neo Solution Implementation Package', qty: 1, unit: 'Per instance', layer: 'consulting', unitBaseUSD: C.consulting.cslt301_price, year1Only: true });
 
-  // Section 6 — Non Prod Licenses
+  // Section 6 — Test Environments
   nonProdSkuRows().forEach(r => skuRows.push({ section: 'nonProd', layer: 'nonProd', ...r, name: r.notes ? `${r.name} (${r.notes})` : r.name }));
 
   // ── Compute per-row net prices ────────────────────────────────────────────────
@@ -3582,7 +3670,7 @@ function renderStep7() {
     { key: 'aiSuite',    label: 'AI Suite',                   badge: '2' },
     { key: 'enhanced',   label: 'Add Ons',                    badge: '3' },
     { key: 'consulting', label: 'Advantage & Implementation', badge: '4' },
-    { key: 'nonProd',    label: 'Non Prod Licenses',          badge: '5' },
+    { key: 'nonProd',    label: 'Test Environments',          badge: '5' },
   ];
   const FIXED_COLS = 4; // Product | SKU | Qty | Unit
   const totalCols  = FIXED_COLS + periods.length;
@@ -4037,7 +4125,7 @@ function buildSkuRows() {
     rows.push({ sku: 'CSLT301', name: 'Nuix Neo Solution Implementation Package', qty: 1, unit: 'Per instance', notes: 'Year 1 only', layer: 'consulting', unitBaseUSD: C.consulting.cslt301_price, year1Only: true, key: 'cons_solutionImplementation', category: 'nuixServices' });
   }
 
-  // ── Non Prod Licenses ────────────────────────────────────────────────────────
+  // ── Test Environments ────────────────────────────────────────────────────────
   nonProdSkuRows().forEach(r => rows.push({ layer: 'nonProd', category: 'nuixSoftware', ...r }));
 
   return rows;
@@ -4325,10 +4413,10 @@ function updateLiveQuote() {
   ].filter(Boolean).join('');
 
   // Layer rows — only show layers whose config step has been reached
-  // Steps: 7=Foundation, 9=AI Suite (also determines the bundled Solutions Library), 11=Discover/Enhanced, 13=Advantage & Implementation (shown once past it), 14=Non Prod Licenses
+  // Steps: 7=Foundation, 9=AI Suite (also determines the bundled Solutions Library), 11=Discover/Enhanced, 13=Advantage & Implementation (shown once past it), 14=Test Environments
   const layerMinStep = { foundation: 6, aiSuite: 7, useCases: 7, enhanced: 11, consulting: 14, nonProd: 14 };
   const layerOrder  = ['foundation', 'aiSuite', 'useCases', 'enhanced', 'consulting', 'nonProd'];
-  const layerLabels = { foundation: 'Nuix Neo Foundation', aiSuite: 'AI Suite', useCases: 'Solutions Library', enhanced: 'Add Ons', consulting: 'Customisation & Consulting', nonProd: 'Non Prod Licenses' };
+  const layerLabels = { foundation: 'Nuix Neo Foundation', aiSuite: 'AI Suite', useCases: 'Solutions Library', enhanced: 'Add Ons', consulting: 'Customisation & Consulting', nonProd: 'Test Environments' };
 
   const layerRows = layerOrder.map(key => {
     const l = layers[key];
@@ -4427,7 +4515,7 @@ function updateProgress() {
     // the AI Suite step. Keep the blank slot so the remaining labels stay aligned
     // to their step numbers (mirrors the '' placeholder at index 1 for skipped step 2).
     'Nuix Neo Foundation', '', 'AI Suite', 'Visualisation', 'Discover', 'Add Ons', 'Advantage & Implementation',
-    'Non Prod Licenses', 'Partner Margins', 'Quote summary'
+    'Test Environments', 'Partner Margins', 'Quote summary'
   ];
   const groups = [
     { label: 'Setup',          steps: isUpsellBuilderSkipped() ? [1, 3, 4] : [1, 3, 4, 5] },
@@ -4598,6 +4686,7 @@ function bindStepEvents() {
   // Step 4: pricing model cards
   document.querySelectorAll('[data-pricing]').forEach(card => {
     card.addEventListener('click', () => {
+      if (state.pricingModel !== card.dataset.pricing) state.foundation.tierManuallySet = false;
       state.pricingModel = card.dataset.pricing;
       showStep(state.currentStep, true);
     });
@@ -4707,14 +4796,19 @@ function bindStepEvents() {
     if (el) el.addEventListener('input', () => {
       const tb = parseFloat($('f-tbperyear')?.value) || 0;
       const u  = parseFloat($('f-users')?.value)     || 0;
+      // A changed TB/yr is a new requirement, so the recommendation follows it again.
+      if (tb !== (parseFloat(state.foundation.tbPerYear) || 0)) state.foundation.tierManuallySet = false;
       state.foundation.tbPerYear   = tb;
       state.foundation.usersNeeded = u;
       if (tb > 0) {
-        const rec = recommendConsumptionTier(tb, u);
-        if (rec) {
-          state.foundation.selectedTier    = rec.tier;
-          state.foundation.boosters.volume = rec.etb;
-          state.foundation.boosters.users  = rec.eu;
+        {
+          // Respect a manually-picked tier (via the tier-switch pills) — only fall back
+          // to the best-fit recommendation when nothing's been overridden.
+          const tier = state.foundation.tierManuallySet ? state.foundation.selectedTier : bestFitConsumptionTier(tb);
+          const t    = cfg().consumption_tiers[tier];
+          state.foundation.selectedTier    = tier;
+          state.foundation.boosters.volume = Math.max(0, tb - t.included_tb);
+          state.foundation.boosters.users  = Math.max(0, u - t.users);
           $('consumption-pricing-area').innerHTML = renderConsumptionPricing();
           bindBoosterEvents();
         }
@@ -4730,16 +4824,18 @@ function bindStepEvents() {
       if (state.customer.dealType === 'Neo Expansion') return;
       const w = parseFloat($('f-workers')?.value) || 0;
       const u = parseFloat($('f-users')?.value)   || 0;
+      // A changed worker count is a new requirement, so the recommendation follows it
+      // again — any earlier manual pill pick no longer applies.
+      if (w !== (parseFloat(state.foundation.workersNeeded) || 0)) state.foundation.tierManuallySet = false;
       // Always keep state in sync so upgrade calc uses current values
       state.foundation.workersNeeded = w;
       state.foundation.usersNeeded   = u;
       if (w > 0) {
-        const rec = recommendTier(w, 0, u);
-        if (rec) {
+        {
           // Respect a manually-picked tier (e.g. via the tier-switch pills) — only
-          // fall back to the cheapest recommendation when nothing's been overridden.
+          // fall back to the best-fit recommendation when nothing's been overridden.
           // Rapid plus boosters covers any worker/user count, uncapped.
-          const tier = state.foundation.tierManuallySet ? state.foundation.selectedTier : rec.tier;
+          const tier = state.foundation.tierManuallySet ? state.foundation.selectedTier : bestFitTier(w);
           const t    = cfg().foundation_tiers[tier];
           state.foundation.selectedTier     = tier;
           state.foundation.boosters.workers = Math.max(0, w - t.workers);
@@ -4869,7 +4965,7 @@ function bindStepEvents() {
     });
   });
 
-  // Non Prod Licenses: each SKU is on (1 unit) or off
+  // Test Environments: each SKU is on (1 unit) or off
   document.querySelectorAll('[data-np-toggle]').forEach(chk => {
     chk.addEventListener('click', () => {
       const sku = chk.dataset.npToggle;
@@ -5058,20 +5154,17 @@ function bindBoosterEvents() {
     });
   });
 
-  // Tier-switch pills (worker model only) — lets the user knowingly override the
-  // cheapest-tier recommendation, e.g. to keep a lighter services package or cap
-  // customer throughput, even though the booster-inflated total costs more.
-  if (!isConsumption) {
-    document.querySelectorAll('[data-tier-switch]').forEach(pill => {
-      pill.addEventListener('click', () => {
-        const key = pill.dataset.tierSwitch;
-        if (key === state.foundation.selectedTier) return;
-        state.foundation.tierManuallySet = true;
-        upgradeToTier(key);
-        updateLiveQuote();
-      });
+  // Tier-switch pills (both pricing models) — lets the user knowingly override the
+  // cheapest-tier recommendation even though the booster-inflated total costs more.
+  document.querySelectorAll('[data-tier-switch]').forEach(pill => {
+    pill.addEventListener('click', () => {
+      const key = pill.dataset.tierSwitch;
+      if (key === state.foundation.selectedTier) return;
+      state.foundation.tierManuallySet = true;
+      upgradeToTier(key);
+      updateLiveQuote();
     });
-  }
+  });
 
   const implPkgEl = $('adv-impl-pkg');
   if (implPkgEl) implPkgEl.addEventListener('change', () => {
@@ -5357,7 +5450,7 @@ function generateFullQuote() {
     aiSelected.length ? `<li><strong>AI Suite:</strong> ${aiSelected.join(', ')}</li>` : '',
     !state.useCases.foundationOnly ? `<li><strong>Solutions Library:</strong> included at no charge (bundled with Enrich/Semantic Search/Transcription)</li>` : '',
     ecSelected.length ? `<li><strong>Enhanced capabilities:</strong> ${ecSelected.join(', ')}</li>` : '',
-    nonProdSkuRows().length ? `<li><strong>Non Prod Licenses:</strong> ${nonProdSkuRows().map(r => r.name).join(', ')}</li>` : ''
+    nonProdSkuRows().length ? `<li><strong>Test Environments:</strong> ${nonProdSkuRows().map(r => r.name).join(', ')}</li>` : ''
   ].filter(Boolean).join('');
 
   const html = `<!DOCTYPE html>
@@ -5908,7 +6001,7 @@ function generateSKUOrder() {
     { key: 'useCases',   label: 'Solutions Library'           },
     { key: 'enhanced',   label: 'Enhanced Capability'         },
     { key: 'consulting', label: 'Consulting & Services'       },
-    { key: 'nonProd',    label: 'Non Prod Licenses'           },
+    { key: 'nonProd',    label: 'Test Environments'           },
   ];
   const totNetY1      = Object.values(layers).reduce((s, l) => s + l.net, 0);
   const totListUSD    = Object.values(layers).reduce((s, l) => s + l.baseUSD, 0);
@@ -6006,7 +6099,7 @@ function generateSKUOrder() {
   const ceilingPctSku = getMaxThreshold() * 100;
   const discNotes = [`Discount ceiling: ${ceilingPctSku.toFixed(1)}% off list before CEO approval`];
   const salesDiscNotes = Object.entries(layers).filter(([,l]) => l.salesDisc > 0.001).map(([k, l]) => {
-    const lbl = { foundation: 'Foundation', aiSuite: 'AI Suite', useCases: 'Use Cases', enhanced: 'Enhanced', consulting: 'Consulting', nonProd: 'Non Prod' }[k] || k;
+    const lbl = { foundation: 'Foundation', aiSuite: 'AI Suite', useCases: 'Use Cases', enhanced: 'Enhanced', consulting: 'Consulting', nonProd: 'Test Envs' }[k] || k;
     return `${lbl} ${fmtpct(l.salesDisc)} sales disc.`;
   });
 
@@ -6360,7 +6453,7 @@ function generateBudgetQuote(variant) {
   if (state.advantageServices?.solutionImplementationPackage) {
     rows.push({ sku: 'CSLT301', name: 'Nuix Neo Solution Implementation Package', qty: 1, unit: 'Per instance', layer: 'consulting', unitBaseUSD: C.consulting.cslt301_price, year1Only: true });
   }
-  // 7 — Non Prod Licenses
+  // 7 — Test Environments
   nonProdSkuRows().forEach(r => rows.push({ layer: 'nonProd', ...r, name: r.notes ? `${r.name} (${r.notes})` : r.name }));
 
   // ── Pre-compute net prices per row per period ─────────────────────────────────
@@ -7432,8 +7525,8 @@ function showPriceList() {
     ),
   ].join(''));
 
-  // Non Prod Licenses — list_price is null until pricing is confirmed, shown as TBC
-  html += sect('Layer 5 — Non Prod Licenses', null, D.nonProd.map(s =>
+  // Test Environments — list_price is null until pricing is confirmed, shown as TBC
+  html += sect('Layer 5 — Test Environments', null, D.nonProd.map(s =>
     '<tr>' + lbl(s.name, s.description)
       + pc(s.list_price == null
         ? '<span style="font-size:12px;color:#6b7280">Price TBC · ' + s.sku + '</span>'
@@ -7592,7 +7685,7 @@ function showSKUListPage() {
     ['Layer 3 – Third Party','VERTSCPXLG','Veritone – Transcription 135,000 hrs (X-Large)','Per instance/yr','$220,000',''],
     ['Layer 3 – Third Party','VERTSLTLAN1','Veritone – Translation (First Language)','Per language/yr','$27,500',''],
     ['Layer 3 – Third Party','VERTSLTLANS','Veritone – Translation (Additional Language)','Per language/yr','$5,500',''],
-    ...cfg().non_prod.skus.map(s => ['Layer 5 – Non Prod Licenses', s.sku, s.name, 'Per unit/yr', s.list_price == null ? 'TBC' : '$' + s.list_price.toLocaleString('en-US'), 'Test environment']),
+    ...cfg().non_prod.skus.map(s => ['Layer 5 – Test Environments', s.sku, s.name, 'Per unit/yr', s.list_price == null ? 'TBC' : '$' + s.list_price.toLocaleString('en-US'), 'Test environment']),
   ];
 
   const layerColors = {
@@ -7603,7 +7696,7 @@ function showSKUListPage() {
     'Layer 3 – Visualisation': '#3b7dd1',
     'Layer 3 – Third Party': '#2666a8',
     'Layer 4 – Advantage & Implementation': '#0d4080',
-    'Layer 5 – Non Prod Licenses': '#5b6b85',
+    'Layer 5 – Test Environments': '#5b6b85',
     'Other': '#475569',
   };
 
@@ -7743,7 +7836,7 @@ function showPricingGuide() {
     .section.collapsed .section-body{display:none}
     .section-intro{font-size:13px;color:#475569;line-height:1.6;margin-bottom:18px}
     /* ── Layer colors ── */
-    .l1{background:#003080!important}.l2{background:#0056e3!important}.l3{background:#0066d6!important}.l4{background:#1a5cbf!important}.l5{background:#0d4080!important}.lother{background:#475569!important}
+    .l1{background:#003080!important}.l2{background:#0056e3!important}.l3{background:#0066d6!important}.l4{background:#1a5cbf!important}.l5{background:#0d4080!important}.l6{background:#5b6b85!important}.lother{background:#475569!important}
     /* ── Stack diagram ── */
     .stack-wrap{display:flex;flex-direction:column;gap:0;max-width:720px;margin:0 auto}
     .stack-layer{border-radius:10px;overflow:hidden;position:relative;transition:transform 0.15s,box-shadow 0.15s}
@@ -7893,6 +7986,7 @@ function showPricingGuide() {
     <a class="nav-item" data-target="sec-ec-pricing"><span class="nav-badge">Layer 3</span>Add Ons — Pricing Detail</a>
     <a class="nav-item" data-target="sec-ec-matrix"><span class="nav-badge">Layer 3 — Use Case Fit</span>Add Ons</a>
     <a class="nav-item" data-target="sec-advantage"><span class="nav-badge">Layer 4</span>Advantage &amp; Implementation</a>
+    <a class="nav-item" data-target="sec-testenv"><span class="nav-badge">Layer 5</span>Test Environments</a>
     <a class="nav-item" data-target="sec-deps"><span class="nav-badge">Dependencies</span>Product Dependencies</a>
     <a class="nav-item" data-target="sec-discounts"><span class="nav-badge">Discounting</span>Discount Calculator</a>
     <a class="nav-item" data-target="sec-currency"><span class="nav-badge">Currency</span>Currency Conversion Rates</a>
@@ -7907,8 +8001,12 @@ function showPricingGuide() {
         <span class="collapse-icon">&#8964;</span>
       </div>
       <div class="section-body">
-        <p class="section-intro">The Nuix NEO framework follows the same 5-step workflow as the Pricing Tool. Every deal starts with Step 1 — Nuix Neo Foundation; each subsequent step adds an optional layer on top.</p>
+        <p class="section-intro">The Nuix NEO framework follows the same 7-step workflow as the Pricing Tool. Every deal starts with Step 1 — Nuix Neo Foundation; each subsequent step adds an optional layer on top.</p>
         <div class="stack-wrap">
+          <div class="stack-layer l6">
+            <div class="stack-head"><span class="stack-num">Step 7</span><span class="stack-name">Test Environments</span><span class="stack-price">Optional · $5K – $50K / unit / yr</span></div>
+            <div class="stack-body">Optional non-production test environment licences for Nuix Discover, Nuix Neo, ECC and Adaptive Security (Standard and Performance variants), sold per unit per year alongside the production deal.</div>
+          </div>
           <div class="stack-layer l5">
             <div class="stack-head"><span class="stack-num">Step 6</span><span class="stack-name">Advantage &amp; Implementation</span><span class="stack-price">Optional / one-off</span></div>
             <div class="stack-body">Advantage support upgrades (Bronze → Silver → Gold), Advantage Hours Top Up packs (CSLT107), the Foundation (CSLT300) and Solution (CSLT301) Implementation Packages, and the optional Component License Extension for eligible Nuix Neo renewals.</div>
@@ -8000,7 +8098,7 @@ function showPricingGuide() {
 
         <div class="booster-head">How it works</div>
         <p style="font-size:13px;color:#374151;line-height:1.7;margin-bottom:16px">
-          The rep enters the customer's estimated TB/yr and concurrent users, and the tool recommends the cheapest covering tier plus any TB or user boosters needed — exactly the same recommend-and-upgrade flow as the worker-based model. Each tier bundles a fixed included TB volume, concurrent users, training credits and Advantage support; going over the included TB is priced via the tier's TB booster.
+          The rep enters the customer's estimated TB/yr and concurrent users, and the tool recommends the best-fit tier (the largest tier whose included TB doesn't exceed the requirement) plus any TB or user boosters needed, and flags the cheapest tier as Best Value — exactly the same recommend-and-upgrade flow as the worker-based model. Each tier bundles a fixed included TB volume, concurrent users, training credits and Advantage support; going over the included TB is priced via the tier's TB booster.
         </p>
 
         <div class="tier-cards">
@@ -8252,6 +8350,23 @@ function showPricingGuide() {
           <tbody>
             <tr><td><strong>CSLT300</strong></td><td>Nuix Neo Foundation Implementation Package</td><td class="price-cell" style="text-align:right">$31,310</td><td><div class="sub-text">One-off · Year 1 only for multi-year deals · per instance</div></td></tr>
             <tr><td><strong>CSLT301</strong></td><td>Nuix Neo Solution Implementation Package</td><td class="price-cell" style="text-align:right">$46,020</td><td><div class="sub-text">One-off · Year 1 only for multi-year deals · per instance</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Layer 5. Test Environments ── -->
+    <div class="section" id="sec-testenv">
+      <div class="section-header" style="background:#5b6b85" onclick="toggleSection(this)">
+        <div class="section-header-left"><span class="badge">Layer 5</span><h2>Test Environments</h2></div>
+        <span class="collapse-icon">&#8964;</span>
+      </div>
+      <div class="section-body">
+        <p class="section-intro">Optional test environment licences for customers who need a non-production instance alongside production. Each SKU is sold per unit per year and can be selected independently.</p>
+        <table>
+          <thead><tr><th>SKU</th><th>Description</th><th class="right">List Price</th><th>Notes</th></tr></thead>
+          <tbody>
+            ${C.non_prod.skus.map(s => `<tr><td><strong>${s.sku}</strong></td><td>${s.name}</td><td class="price-cell" style="text-align:right">${s.list_price == null ? 'TBC' : '$' + s.list_price.toLocaleString('en-US')}</td><td><div class="sub-text">Per unit/yr · ${s.description}</div></td></tr>`).join('')}
           </tbody>
         </table>
       </div>

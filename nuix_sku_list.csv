@@ -132,12 +132,12 @@ Layer 3 – Third Party,VERTSLTLAN1,Veritone – Translation (First Language),Th
 Layer 3 – Third Party,VERTSLTLANS,Veritone – Translation (Additional Language),Third Party Add Ons,Per language/yr,"$5,500",,Y
 Layer 4 – Advantage & Implementation,CSLT300,Nuix Neo Foundation Implementation Package,Services,Per instance,"$31,310",One-off only. Year 1 only if the deal is multi-year,Y
 Layer 4 – Advantage & Implementation,CSLT301,Nuix Neo Solution Implementation Package,Services,Per instance,"$46,020",One-off only. Year 1 only if the deal is multi-year,Y
-Layer 5 – Non Prod Licenses,NONPRODDISC01,Nuix Discover - v100+,Non Prod,Per unit/yr,"$10,000","2 Workers, 5 Reviewers, 1 NMS and add-ons (Neo Engine)",Y
-Layer 5 – Non Prod Licenses,NONPRODDISC02,Nuix Discover - v10.x,Non Prod,Per unit/yr,"$7,500","2 Workers, 5 Reviewers, 1 NMS and add-ons",Y
-Layer 5 – Non Prod Licenses,NONPRODDISC03,Nuix Discover - No Ingestions,Non Prod,Per unit/yr,"$5,000","5 Reviewers and add-ons; replicates production version",Y
-Layer 5 – Non Prod Licenses,NONPRODNEO01,Nuix Neo Test Environment – Standard,Non Prod,Per unit/yr,"$10,000","2 Workers, 2 Investigate, 1 Automate, 1 NLP; max case 5GB (offline)",Y
-Layer 5 – Non Prod Licenses,NONPRODNEO02,Nuix Neo Test Environment – Performance,Non Prod,Per unit/yr,"$50,000","~25% of production Neo environment; max case 5GB (offline)",Y
-Layer 5 – Non Prod Licenses,NONPRODECC01,Nuix ECC Test Environment – Standard,Non Prod,Per unit/yr,"$5,000","Up to 10 endpoints",Y
-Layer 5 – Non Prod Licenses,NONPRODECC02,Nuix ECC Test Environment – Performance,Non Prod,Per unit/yr,"$20,000","~25% of production endpoints",Y
-Layer 5 – Non Prod Licenses,NONPRODADPT01,Nuix Adaptive Security Test Environment – Standard,Non Prod,Per unit/yr,"$5,000","1 server and up to 10 endpoints",Y
-Layer 5 – Non Prod Licenses,NONPRODADPT02,Nuix Adaptive Security Test Environment – Performance,Non Prod,Per unit/yr,"$20,000","~25% of production capacity",Y
+Layer 5 – Test Environments,NONPRODDISC01,Nuix Discover - v100+,Non Prod,Per unit/yr,"$10,000","2 Workers, 5 Reviewers, 1 NMS and add-ons (Neo Engine)",Y
+Layer 5 – Test Environments,NONPRODDISC02,Nuix Discover - v10.x,Non Prod,Per unit/yr,"$7,500","2 Workers, 5 Reviewers, 1 NMS and add-ons",Y
+Layer 5 – Test Environments,NONPRODDISC03,Nuix Discover - No Ingestions,Non Prod,Per unit/yr,"$5,000","5 Reviewers and add-ons; replicates production version",Y
+Layer 5 – Test Environments,NONPRODNEO01,Nuix Neo Test Environment – Standard,Non Prod,Per unit/yr,"$10,000","2 Workers, 2 Investigate, 1 Automate, 1 NLP; max case 5GB (offline)",Y
+Layer 5 – Test Environments,NONPRODNEO02,Nuix Neo Test Environment – Performance,Non Prod,Per unit/yr,"$50,000","~25% of production Neo environment; max case 5GB (offline)",Y
+Layer 5 – Test Environments,NONPRODECC01,Nuix ECC Test Environment – Standard,Non Prod,Per unit/yr,"$5,000","Up to 10 endpoints",Y
+Layer 5 – Test Environments,NONPRODECC02,Nuix ECC Test Environment – Performance,Non Prod,Per unit/yr,"$20,000","~25% of production endpoints",Y
+Layer 5 – Test Environments,NONPRODADPT01,Nuix Adaptive Security Test Environment – Standard,Non Prod,Per unit/yr,"$5,000","1 server and up to 10 endpoints",Y
+Layer 5 – Test Environments,NONPRODADPT02,Nuix Adaptive Security Test Environment – Performance,Non Prod,Per unit/yr,"$20,000","~25% of production capacity",Y
