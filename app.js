@@ -11,7 +11,7 @@ const state = {
   aiSuite: { aiBundle: false, enrich: false, enrichManual: false, semantic: false, transcription: false, agenticBYOAI: false, byoAIAdvanced: false, byoAIGraph: false, byoGraphAutoEnrich: false, agenticAdvanced: false, semanticAutoAgentic: false, supportAutoAgentic: false },
   useCases: { secondary: [], subUseCases: [], foundationOnly: true },
   enhancedCap: {
-    discover_saas:     { selected: false, active_gb: 1, archive_gb: 1, file_transfer_gb: 0, inactive_gb: 0, eca_gb: 0,
+    discover_saas:     { selected: false, active_gb: 0, archive_gb: 0, file_transfer_gb: 0, inactive_gb: 0, eca_gb: 0,
       audio_minutes: 0, translation_docs: 0, tfa_users: 0, excel_redaction_docs: 0,
       // Per add-on: true = pay as you go (billed on usage, $0 committed) instead of an upfront commit
       payg: { active_gb: false, archive_gb: false, file_transfer_gb: false, inactive_gb: false, eca_gb: false, audio_minutes: false, translation_docs: false, tfa_users: false, excel_redaction_docs: false },
@@ -103,11 +103,30 @@ function migrateLoadedState() {
 // Since state now survives a refresh, a page reload can no longer be used to
 // start a fresh deal — this gives users an explicit way to do that instead.
 function startNewQuote() {
-  if (!confirm('Start a new deal? This will clear everything entered so far (save this quote first if you need it).')) return;
-  Object.keys(state).forEach(k => delete state[k]);
-  Object.assign(state, JSON.parse(JSON.stringify(INITIAL_STATE)));
-  try { sessionStorage.removeItem(SESSION_STORAGE_KEY); } catch { /* best-effort */ }
-  showStep(1);
+  // In-page confirmation rather than window.confirm(), which some browsers and embedded
+  // panes suppress (returning false straight away, so the button appeared to do nothing).
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:24px 28px;max-width:420px;box-shadow:0 12px 40px rgba(0,0,0,0.3)">
+      <div style="font-size:17px;font-weight:700;color:#1a1a2e;margin-bottom:8px">Start a new deal?</div>
+      <div style="font-size:13px;color:#4b5563;margin-bottom:20px">This will clear everything entered so far. Save this quote first if you need it.</div>
+      <div style="display:flex;justify-content:flex-end;gap:10px">
+        <button data-act="cancel" style="padding:8px 18px;border-radius:8px;border:1.5px solid #d1d5db;background:#fff;font-weight:600;cursor:pointer">Cancel</button>
+        <button data-act="ok" style="padding:8px 18px;border-radius:8px;border:none;background:#003080;color:#fff;font-weight:700;cursor:pointer">Start new deal</button>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', e => {
+    const act = e.target.dataset && e.target.dataset.act;
+    if (e.target === overlay || act === 'cancel') { overlay.remove(); return; }
+    if (act !== 'ok') return;
+    overlay.remove();
+    Object.keys(state).forEach(k => delete state[k]);
+    Object.assign(state, JSON.parse(JSON.stringify(INITIAL_STATE)));
+    try { sessionStorage.removeItem(SESSION_STORAGE_KEY); } catch { /* best-effort */ }
+    showStep(1);
+  });
+  document.body.appendChild(overlay);
 }
 
 // ─── Value / ROI data ────────────────────────────────────────────────────────
@@ -2095,7 +2114,10 @@ function renderUpsellRecommendation(rec) {
     </div>`;
 }
 
+let suiteNotice = '';   // one-off note shown on Step B after a suite change clears the deal type
+
 function renderProductSuite() {
+  const notice = suiteNotice; suiteNotice = '';
   const suites = [
     {
       key: 'neo',
@@ -2140,6 +2162,7 @@ function renderProductSuite() {
       <h2>Select Product Suite</h2>
       <p class="text-muted" style="margin-bottom:24px">Which Nuix product suite is the customer interested in?</p>
       <div class="suite-grid">${cards}</div>
+      ${notice ? `<div style="background:#EFF6FF;border:1.5px solid #93C5FD;border-radius:10px;padding:12px 16px;margin-top:16px;font-size:13px;color:#1e40af;font-weight:600">${notice}</div>` : ''}
       ${comingSoonMsg}
     </div>`;
 }
@@ -4081,12 +4104,6 @@ function validateStep() {
     if (!state.customer.country)       { alert('Please select a country.');           return false; }
     if (!state.customer.type)          { alert('Please select a customer type.');     return false; }
   }
-  if (state.currentStep === 2 && isDiscoverDealType() && !isDiscoverSuite()) {
-    alert(`"${state.customer.dealType}" is a Discover deal type. Choose the Nuix Discover suite, or change the deal type on Step A.`); return false;
-  }
-  if (state.currentStep === 2 && isDiscoverSuite() && state.customer.dealType === 'Neo Expansion') {
-    alert('Nuix Neo Expansion deals are Neo-only. Change the deal type on Step A, or choose the Nuix Neo suite.'); return false;
-  }
   if (state.currentStep === 11 && isDiscoverSuite()) {
     const ec = state.enhancedCap;
     if (!ec.discover_saas.selected && !ec.discover_onprem.selected) { alert('Please select Discover SaaS and/or Discover On-Prem.'); return false; }
@@ -4879,8 +4896,12 @@ function bindStepEvents() {
   // Step 2: product suite cards
   document.querySelectorAll('[data-suite]').forEach(card => {
     card.addEventListener('click', () => {
+      const prevDeal = state.customer.dealType;
       state.productSuite = card.dataset.suite;
       if (state.productSuite === 'discover') enterDiscoverSuite();
+      // The suite chosen here wins over a deal type from Step A that belongs to the other suite
+      if (state.productSuite === 'neo' && isDiscoverDealType()) state.customer.dealType = '';
+      if (state.customer.dealType !== prevDeal && prevDeal) suiteNotice = `The deal type "${prevDeal}" doesn't apply to ${state.productSuite === 'neo' ? 'Nuix Neo' : 'Nuix Discover'}, so it has been cleared. Choose a new deal type on Step A.`;
       showStep(state.currentStep, true);
     });
   });
