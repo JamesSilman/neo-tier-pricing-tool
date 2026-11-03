@@ -9760,7 +9760,7 @@ function initApp() {
       <div style="display:flex;align-items:center;gap:16px">
         <img src="NXL.AX_BIG.D-4e4ae371.png" alt="Nuix" style="height:30px;display:block">
         <div style="width:1px;height:28px;background:rgba(255,255,255,0.2)"></div>
-        <span style="color:rgba(255,255,255,0.85);font-size:15px;font-weight:600;letter-spacing:-0.2px">Nuix Neo Pricing Tool</span>
+        <span style="color:rgba(255,255,255,0.85);font-size:15px;font-weight:600;letter-spacing:-0.2px">Nuix Pricing Tool</span>
       </div>
       <div style="display:flex;align-items:center;gap:16px">
         <button onclick="saveQuote()" style="background:rgba(255,255,255,0.18);border:1.5px solid rgba(255,255,255,0.5);color:#fff;padding:6px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:0.2px">💾 Save Quote</button>
