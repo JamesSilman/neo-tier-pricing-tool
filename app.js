@@ -1492,6 +1492,9 @@ function renderStep1() {
             <option value="Renewal" ${state.customer.dealType==='Renewal'?'selected':''}>Renewal or Nuix Neo Migration</option>
             <option value="Neo Expansion" ${state.customer.dealType==='Neo Expansion'?'selected':''}>Nuix Neo Expansion</option>
             <option value="New Business" ${state.customer.dealType==='New Business'?'selected':''}>New Business</option>
+            <optgroup label="Nuix Discover">
+              ${DISCOVER_DEAL_TYPES.map(d => `<option value="${d}" ${state.customer.dealType===d?'selected':''}>${d}</option>`).join('')}
+            </optgroup>
           </select>
         </div>
         <div class="form-group full">
@@ -1505,6 +1508,7 @@ function renderStep1() {
           <li><strong>Renewal or Nuix Neo Migration</strong> — the customer already holds a Nuix contract, whether on Component products (e.g. Nuix Workstation) or a Nuix Neo Solution (e.g. Nuix Neo Investigations Solution).</li>
           <li><strong>Nuix Neo Expansion</strong> — the customer is already on Nuix Neo and this deal adds capacity to their existing contract.</li>
           <li><strong>New Business</strong> — the customer is a new logo, or this is a net-new environment at an existing customer.</li>
+          <li><strong>Discover New Business / Renewal / Expansion</strong> — the same three situations for a Nuix Discover quote (SaaS or On-Prem) without Nuix Neo. Choosing one selects the Nuix Discover product suite for you.</li>
         </ul>
       </div>
     </div>`;
@@ -4001,6 +4005,7 @@ function saveStep1() {
   state.customer.country       = knownCountries.includes(typedCountry) ? typedCountry : '';
   state.customer.type          = $('f-type')?.value || '';
   state.customer.dealType      = $('f-dealtype')?.value || '';
+  syncSuiteToDealType();
   state.customer.channel       = $('f-channel')?.value  || '';
   state.customer.opportunityLink = ($('f-opportunity-link')?.value || '').trim();
   state.customer.contractValue = $('f-duration')?.value || 1;
@@ -4075,6 +4080,9 @@ function validateStep() {
   if (state.currentStep === 1) {
     if (!state.customer.country)       { alert('Please select a country.');           return false; }
     if (!state.customer.type)          { alert('Please select a customer type.');     return false; }
+  }
+  if (state.currentStep === 2 && isDiscoverDealType() && !isDiscoverSuite()) {
+    alert(`"${state.customer.dealType}" is a Discover deal type. Choose the Nuix Discover suite, or change the deal type on Step A.`); return false;
   }
   if (state.currentStep === 2 && isDiscoverSuite() && state.customer.dealType === 'Neo Expansion') {
     alert('Nuix Neo Expansion deals are Neo-only. Change the deal type on Step A, or choose the Nuix Neo suite.'); return false;
@@ -4512,8 +4520,21 @@ function isStepSkipped(n) {
 function stepAfter(n)  { let x = n + 1; while (x < 16 && isStepSkipped(x)) x++; return x; }
 function stepBefore(n) { let x = n - 1; while (x > 1  && isStepSkipped(x)) x--; return x; }
 
+// Discover-specific deal types. Choosing one selects the Discover suite; Neo Expansion selects Neo.
+const DISCOVER_DEAL_TYPES = ['Discover New Business', 'Discover Renewal', 'Discover Expansion'];
+function isDiscoverDealType() { return DISCOVER_DEAL_TYPES.includes(state.customer.dealType); }
+
+function syncSuiteToDealType() {
+  if (isDiscoverDealType() && !isDiscoverSuite()) {
+    state.productSuite = 'discover';
+    enterDiscoverSuite();
+  } else if (state.customer.dealType === 'Neo Expansion' && isDiscoverSuite()) {
+    state.productSuite = 'neo';
+  }
+}
+
 function isUpsellBuilderSkipped() {
-  return state.customer.dealType === 'New Business';
+  return state.customer.dealType === 'New Business' || state.customer.dealType === 'Discover New Business';
 }
 
 function renderStepE() {
