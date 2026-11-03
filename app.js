@@ -1026,7 +1026,7 @@ function calcPrices() {
 
   // Foundation
   let foundBase = 0;
-  if (state.pricingModel === 'consumption') {
+  if (state.pricingModel === 'consumption' && tier) {
     const t   = C.consumption_tiers[tier];
     const b   = C.foundation_boosters[tier];
     const bst = state.foundation.boosters;
@@ -1115,7 +1115,7 @@ function calcPrices() {
     foundation: { label: 'Nuix Neo Foundation',                        baseUSD: foundBase, rm, autoDisc: adsc, salesDisc: (state.discounts.foundation || 0) / 100 + blendedPct },
     aiSuite:    { label: 'AI Suite',                                 baseUSD: aiBase,    rm, autoDisc: adsc, salesDisc: (state.discounts.aiSuite    || 0) / 100 + blendedPct },
     useCases:   { label: 'Solutions Library',                  baseUSD: ucBase,    rm, autoDisc: adsc, salesDisc: (state.discounts.useCases   || 0) / 100 + blendedPct },
-    enhanced:   { label: 'Add Ons',                                 baseUSD: ecBase,    rm, autoDisc: adsc, salesDisc: (state.discounts.enhanced   || 0) / 100 + blendedPct },
+    enhanced:   { label: isDiscoverSuite() ? 'Nuix Discover' : 'Add Ons',                                 baseUSD: ecBase,    rm, autoDisc: adsc, salesDisc: (state.discounts.enhanced   || 0) / 100 + blendedPct },
     nonProd:    { label: 'Test Environments',                       baseUSD: nonProdBaseUSD(), rm, autoDisc: adsc, salesDisc: (state.discounts.nonProd || 0) / 100 + blendedPct },
     consulting: { label: 'Customisation & Consulting',              baseUSD: consBase,  rm: 1, autoDisc: 1, salesDisc: (state.discounts.consulting || 0) / 100 + blendedPct }
   };
@@ -2017,18 +2017,17 @@ function renderProductSuite() {
     {
       key: 'neo',
       name: 'Nuix Neo',
-      description: 'The full Nuix Neo platform — powerful data processing, investigation, legal and privacy workflows with AI capabilities built in.',
+      description: 'The Nuix Neo platform',
       icon: '⬡',
       available: true
     },
     {
-      key: 'component',
-      name: 'Component',
-      description: 'Includes pre-Nuix Neo Workstation, Reviewer, Investigate, and related Maintenance products.',
-      icon: '◧',
-      available: false,
-      underConstruction: true
-    },
+      key: 'discover',
+      name: 'Nuix Discover',
+      description: 'Discover SaaS or Discover OP',
+      icon: '◈',
+      available: true
+    }
   ];
 
   const cards = suites.map(s => {
@@ -2043,7 +2042,7 @@ function renderProductSuite() {
       </div>`;
   }).join('');
 
-  const comingSoonMsg = state.productSuite && state.productSuite !== 'neo' ? `
+  const comingSoonMsg = state.productSuite && !['neo', 'discover'].includes(state.productSuite) ? `
     <div style="background:#FEF3C7;border:1.5px solid #F59E0B;border-radius:10px;padding:20px 24px;display:flex;align-items:center;gap:16px;margin-top:8px">
       <span style="font-size:28px">🚧</span>
       <div>
@@ -3102,7 +3101,8 @@ function renderDiscover() {
 // need a non-production instance. Any SKU can be chosen for now; business rules (e.g. only
 // offering Neo test environments on a Neo deal) can be layered on later.
 function renderNonProd() {
-  const skus = cfg().non_prod.skus;
+  // A Discover-only quote doesn't offer the Nuix Neo test environments
+  const skus = cfg().non_prod.skus.filter(s => !isDiscoverSuite() || s.family !== 'Nuix Neo');
   const qty  = state.nonProd.qty;
   const families = [...new Set(skus.map(s => s.family))];
 
@@ -3150,7 +3150,7 @@ function renderStep5() {
   // their boosters are built from its user_tiers/memory_tiers price data.
   // Discover SaaS/On-Prem moved to their own Discover step (renderDiscover) — too many
   // metered fields to fit this shared card template once the full SKU set was added.
-  const nuixModHtml = Object.entries(C.enhanced_capabilities.nuix_modules).filter(([key]) => !['linkurious', 'discover_saas', 'discover_onprem'].includes(key)).map(([key, mod]) => {
+  const nuixModHtml = Object.entries(C.enhanced_capabilities.nuix_modules).filter(([key]) => !['linkurious', 'discover_saas', 'discover_onprem', ...(isDiscoverSuite() ? DISCOVER_HIDDEN_MODULES : [])].includes(key)).map(([key, mod]) => {
     const sel = ec[key] && ec[key].selected;
     let inputsHtml = '';
     let priceHtml  = '';
@@ -3282,8 +3282,8 @@ function renderStep5() {
       <h2>Add Ons <span class="chip">Optional</span></h2>
       <div class="ec-section-title">Nuix Modules</div>
       <div class="ec-grid">${nuixModHtml}</div>
-      <div class="ec-section-title">Third-Party Capabilities</div>
-      <div class="ec-grid">${tpHtml}</div>
+      ${isDiscoverSuite() ? '' : `<div class="ec-section-title">Third-Party Capabilities</div>
+      <div class="ec-grid">${tpHtml}</div>`}
     </div>`;
 }
 
@@ -3941,6 +3941,13 @@ function validateStep() {
     if (!state.customer.country)       { alert('Please select a country.');           return false; }
     if (!state.customer.type)          { alert('Please select a customer type.');     return false; }
   }
+  if (state.currentStep === 2 && isDiscoverSuite() && state.customer.dealType === 'Neo Expansion') {
+    alert('Nuix Neo Expansion deals are Neo-only. Change the deal type on Step A, or choose the Nuix Neo suite.'); return false;
+  }
+  if (state.currentStep === 11 && isDiscoverSuite()) {
+    const ec = state.enhancedCap;
+    if (!ec.discover_saas.selected && !ec.discover_onprem.selected) { alert('Please select Discover SaaS and/or Discover On-Prem.'); return false; }
+  }
   if (state.currentStep === 3) {
     if (!state.customer.contractStartDate) { alert('Please select a contract start date.'); return false; }
   }
@@ -4028,16 +4035,18 @@ function buildSkuRows() {
     if (bst.workers > 0 && tierSuffix) rows.push({ sku: workerSkus[tier], name: `Additional Worker – ${tierName}`,           qty: bst.workers,       unit: 'Per worker/yr',  notes: '', layer: 'foundation', unitBaseUSD: b.worker, key: 'found_workers', category: 'nuixSoftware' });
     if (bst.volume  > 0 && tierSuffix) rows.push({ sku: volumeSkus[tier], name: `Additional Volume – ${tierName}`,           qty: bst.volume,        unit: 'Per TB/yr',      notes: '', layer: 'foundation', unitBaseUSD: b.volume_tb, key: 'found_volume', category: 'nuixSoftware' });
     if (bst.users   > 0 && tierSuffix) rows.push({ sku: userSkus[tier],   name: `Additional Concurrent User – ${tierName}`, qty: bst.users,         unit: 'Per user/yr',    notes: '', layer: 'foundation', unitBaseUSD: b.user, key: 'found_users', category: 'nuixSoftware' });
-    rows.push({ sku: 'TRNNEO001', name: 'Training Credits', qty: t.training_hours, unit: 'Credits', notes: 'Included', layer: 'foundation', unitBaseUSD: 0, key: 'found_training_included', category: 'nuixServices' });
-    if (bst.trainingHours > 0)
-      rows.push({ sku: 'CSLT107', name: 'Nuix Advantage – Top Up 24 Hours', qty: bst.trainingHours, unit: 'Per 24-hr pack', notes: '', layer: 'foundation', unitBaseUSD: b.training_hour, key: 'found_training', category: 'nuixServices' });
-    const supNames = { bronze: 'Advantage Bronze', silver: 'Advantage Silver', gold: 'Advantage Gold' };
-    const includedSupportSkus = { 'Advantage Bronze': 'CSLT101F', 'Advantage Silver': 'CSLT102F', 'Advantage Gold': 'CSLT103F' };
-    const effectiveSupport = bst.support ? supNames[bst.support] : t.support;
-    rows.push({ sku: includedSupportSkus[effectiveSupport], name: effectiveSupport, qty: 1, unit: 'Per year', notes: 'Advantage entitlement', layer: 'foundation', unitBaseUSD: 0, key: 'found_support_included', category: 'nuixServices' });
-    if (bst.support) {
-      const supSkus  = { bronze: 'CSLT101U', silver: 'CSLT102U', gold: 'CSLT103U' };
-      rows.push({ sku: supSkus[bst.support], name: `Support Upgrade – ${supNames[bst.support]}`, qty: 1, unit: 'Per year', notes: 'Incremental upgrade', layer: 'foundation', unitBaseUSD: getSupportIncrementalCost(bst.support, t.support), key: 'found_support', category: 'nuixServices' });
+    if (tier) {  // no Foundation on a Discover-only quote
+      rows.push({ sku: 'TRNNEO001', name: 'Training Credits', qty: t.training_hours, unit: 'Credits', notes: 'Included', layer: 'foundation', unitBaseUSD: 0, key: 'found_training_included', category: 'nuixServices' });
+      if (bst.trainingHours > 0)
+        rows.push({ sku: 'CSLT107', name: 'Nuix Advantage – Top Up 24 Hours', qty: bst.trainingHours, unit: 'Per 24-hr pack', notes: '', layer: 'foundation', unitBaseUSD: b.training_hour, key: 'found_training', category: 'nuixServices' });
+      const supNames = { bronze: 'Advantage Bronze', silver: 'Advantage Silver', gold: 'Advantage Gold' };
+      const includedSupportSkus = { 'Advantage Bronze': 'CSLT101F', 'Advantage Silver': 'CSLT102F', 'Advantage Gold': 'CSLT103F' };
+      const effectiveSupport = bst.support ? supNames[bst.support] : t.support;
+      rows.push({ sku: includedSupportSkus[effectiveSupport], name: effectiveSupport, qty: 1, unit: 'Per year', notes: 'Advantage entitlement', layer: 'foundation', unitBaseUSD: 0, key: 'found_support_included', category: 'nuixServices' });
+      if (bst.support) {
+        const supSkus  = { bronze: 'CSLT101U', silver: 'CSLT102U', gold: 'CSLT103U' };
+        rows.push({ sku: supSkus[bst.support], name: `Support Upgrade – ${supNames[bst.support]}`, qty: 1, unit: 'Per year', notes: 'Incremental upgrade', layer: 'foundation', unitBaseUSD: getSupportIncrementalCost(bst.support, t.support), key: 'found_support', category: 'nuixServices' });
+      }
     }
   }
 
@@ -4323,6 +4332,50 @@ function showStep(n, noScroll = false) {
   persistState();
 }
 
+// ─── Product suite flow ───────────────────────────────────────────────────────
+// Discover-only quotes have no Neo Foundation, pricing model, AI Suite, Visualisation
+// or Advantage/Implementation steps — those are skipped, and the Neo state is cleared.
+// Add-on modules that don't work with Discover — hidden (and cleared) on a Discover quote
+const DISCOVER_HIDDEN_MODULES = ['automated_relativity', 'legal_hold'];
+
+function isDiscoverSuite() {
+  return state.productSuite === 'discover';
+}
+
+function enterDiscoverSuite() {
+  state.pricingModel = 'worker';
+  resetFoundationRequirements();
+  Object.keys(state.aiSuite).forEach(k => { state.aiSuite[k] = false; });
+  state.useCases.foundationOnly = true;
+  state.useCases.secondary = [];
+  state.useCases.subUseCases = [];
+  state.visualisation.selected = false;
+  state.advantageServices.implementationPackage = false;
+  state.advantageServices.solutionImplementationPackage = false;
+  // Third-party capabilities don't work with Discover — clear any already chosen
+  const ec = state.enhancedCap;
+  ['abbyy', 't3k', 'veritone'].forEach(k => { if (ec[k]) ec[k].selected = false; });
+  ec.q1_dynamics.connectors = {};
+  DISCOVER_HIDDEN_MODULES.forEach(k => { if (ec[k]) ec[k].selected = false; });
+  // Drop any Neo test environments already ticked, so they can't be priced unseen
+  cfg().non_prod.skus.filter(s => s.family === 'Nuix Neo').forEach(s => { delete state.nonProd.qty[s.sku]; });
+  if (state.customer.dealType === 'Neo Expansion') state.customer.dealType = '';
+  if (!state.enhancedCap.discover_saas.selected && !state.enhancedCap.discover_onprem.selected) {
+    state.enhancedCap.discover_saas.selected = true;
+  }
+}
+
+function isStepSkipped(n) {
+  if (n === 8)  return true;                       // Solutions Library step removed — bundled automatically now
+  if (n === 15) return isPartnerMarginsSkipped();
+  if (n === 5)  return isUpsellBuilderSkipped() || isDiscoverSuite();
+  if (isDiscoverSuite() && [4, 6, 7, 9, 10, 13].includes(n)) return true;
+  return false;
+}
+
+function stepAfter(n)  { let x = n + 1; while (x < 16 && isStepSkipped(x)) x++; return x; }
+function stepBefore(n) { let x = n - 1; while (x > 1  && isStepSkipped(x)) x--; return x; }
+
 function isUpsellBuilderSkipped() {
   return state.customer.dealType === 'New Business';
 }
@@ -4336,11 +4389,7 @@ function nextStep() {
   saveCurrentStep();
   if (!validateStep()) return;
   if (state.currentStep < 16) {
-    let next = state.currentStep + 1;
-    if (next === 2)                                  next = 3;
-    if (next === 5  && isUpsellBuilderSkipped())    next = 6;
-    if (next === 8)                                  next = 9; // Solutions Library step removed — bundled automatically now
-    if (next === 15 && isPartnerMarginsSkipped())   next = 16;
+    const next = stepAfter(state.currentStep);
     state.maxStep = Math.max(state.maxStep, next);
     showStep(next);
   }
@@ -4348,14 +4397,7 @@ function nextStep() {
 
 function prevStep() {
   saveCurrentStep();
-  if (state.currentStep > 1) {
-    let prev = state.currentStep - 1;
-    if (prev === 2)                                prev = 1;
-    if (prev === 5  && isUpsellBuilderSkipped())  prev = 4;
-    if (prev === 8)                                prev = 7; // Solutions Library step removed — bundled automatically now
-    if (prev === 15 && isPartnerMarginsSkipped()) prev = 14;
-    showStep(prev);
-  }
+  if (state.currentStep > 1) showStep(stepBefore(state.currentStep));
 }
 
 function updateLiveQuote() {
@@ -4507,7 +4549,7 @@ function updateLiveQuote() {
 
 function updateProgress() {
   const labels = [
-    'Customer profile', '', 'Contract structure', 'Pricing model',
+    'Customer profile', 'Product suite', 'Contract structure', 'Pricing model',
     state.customer.dealType === 'Neo Expansion' ? 'Nuix Neo Expansion builder' : 'Renewal builder',
     'Customer Value',
     // Index 7 (step 8, "Solutions Library") is left blank — that step was removed;
@@ -4518,12 +4560,14 @@ function updateProgress() {
     'Test Environments', 'Partner Margins', 'Quote summary'
   ];
   const groups = [
-    { label: 'Setup',          steps: isUpsellBuilderSkipped() ? [1, 3, 4] : [1, 3, 4, 5] },
-    { label: 'Customer Value', steps: [6] },
-    { label: 'Configure',      steps: [7, 9, 10, 11, 12, 13, 14] },
+    { label: 'Setup',          steps: [1, 2, 3, 4, 5].filter(n => !isStepSkipped(n)) },
+    { label: 'Customer Value', steps: [6].filter(n => !isStepSkipped(n)) },
+    { label: 'Configure',      steps: [7, 9, 10, 11, 12, 13, 14].filter(n => !isStepSkipped(n)) },
     { label: 'Finalise',       steps: isPartnerMarginsSkipped() ? [16] : [15, 16] }
-  ];
-  const stepDot = { 1:'A', 3:'C', 4:'D', 5:'E', 6:'★', 7:'1', 9:'2', 10:'3', 11:'4', 12:'5', 13:'6', 14:'7', 15:'◆', 16:'◈' };
+  ].filter(g => g.steps.length);
+  const stepDot = { 1:'A', 2:'B', 3:'C', 4:'D', 5:'E', 6:'★', 15:'◆', 16:'◈' };
+  // Configure steps are numbered 1..n in the order shown, so skipped ones leave no gap
+  groups.find(g => g.label === 'Configure').steps.forEach((n, i) => { stepDot[n] = String(i + 1); });
   const nav = $('sidebar-nav');
   if (!nav) return;
   nav.innerHTML = groups.map(g => {
@@ -4558,11 +4602,11 @@ function jumpToStep(n) {
 
 function updateNavButtons() {
   const isPricingComingSoon = false;
-  const totalSteps          = (isUpsellBuilderSkipped() ? 13 : 14) + (isPartnerMarginsSkipped() ? 0 : 1);
   $('btn-prev').style.visibility = state.currentStep > 1 ? '' : 'hidden';
   $('btn-next').style.display = (state.currentStep === 16 || isPricingComingSoon) ? 'none' : '';
-  const lastSetupStep = isUpsellBuilderSkipped() ? 4 : 5;
-  $('btn-next').textContent   = state.currentStep === lastSetupStep ? 'Customer Value →' : state.currentStep === 6 ? 'Configure →' : state.currentStep === 14 ? 'Review Pricing →' : 'Next →';
+  const lastSetupStep = [5, 4, 3].find(n => !isStepSkipped(n));
+  const toCustomerValue = !isStepSkipped(6);
+  $('btn-next').textContent   = state.currentStep === lastSetupStep ? (toCustomerValue ? 'Customer Value →' : 'Configure →') : state.currentStep === 6 ? 'Configure →' : state.currentStep === 14 ? 'Review Pricing →' : 'Next →';
   $('step-count').style.display = 'none';
 }
 
@@ -4679,6 +4723,7 @@ function bindStepEvents() {
   document.querySelectorAll('[data-suite]').forEach(card => {
     card.addEventListener('click', () => {
       state.productSuite = card.dataset.suite;
+      if (state.productSuite === 'discover') enterDiscoverSuite();
       showStep(state.currentStep, true);
     });
   });
