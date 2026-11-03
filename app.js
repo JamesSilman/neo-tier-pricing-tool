@@ -13,6 +13,8 @@ const state = {
   enhancedCap: {
     discover_saas:     { selected: false, active_gb: 1, archive_gb: 1, file_transfer_gb: 0, inactive_gb: 0, eca_gb: 0,
       audio_minutes: 0, translation_docs: 0, tfa_users: 0, excel_redaction_docs: 0,
+      // Per add-on: true = pay as you go (billed on usage, $0 committed) instead of an upfront commit
+      payg: { active_gb: false, archive_gb: false, file_transfer_gb: false, inactive_gb: false, eca_gb: false, audio_minutes: false, translation_docs: false, tfa_users: false, excel_redaction_docs: false },
       gen_ai_review_mode: 'none', gen_ai_review_docs: 0 },
     discover_onprem:   { selected: false, instances: 1, users: 1, capacity_gb: 0,
       predictive_coding_instances: 0, ai_review_instances: 0, enrich_instances: 0,
@@ -37,7 +39,7 @@ const state = {
     kgAutoEnrich: false,
     byoGraphAutoSelected: false,
   },
-  advantageServices: { implementationPackage: false, solutionImplementationPackage: false, componentLicenseExtension: '' },
+  advantageServices: { implementationPackage: false, solutionImplementationPackage: false, componentLicenseExtension: '', discoverAdvantageQty: 0, discoverTopUpQty: 0 },
   // Test Environments (Configure section 7) — selected SKUs, keyed by SKU code. Each is a
   // simple yes/no (always 1 unit); a missing entry means not selected.
   nonProd: { qty: {} },
@@ -925,6 +927,7 @@ function getAiModuleBaseUSD(stateKey, tierKey, aiSuite) {
 // becomes a TCV; ONE blended discount % is looked up from that TCV and applied equally
 // to all four. Nothing else in Discover SaaS (ECA, Gen AI Review, etc.) is in this pool.
 function discoverSaasVolumeDiscount(dc, nm) {
+  dc = discoverCommitView(dc);
   const monthlyList = dc.active_gb * nm.active_gb_month
     + dc.archive_gb * nm.archive_gb_month
     + (dc.file_transfer_gb || 0) * nm.file_transfer_gb_month
@@ -940,18 +943,52 @@ function discoverSaasVolumeDiscount(dc, nm) {
 // Discover SaaS is metered per GB/user/minute/document per month (annualized ×12),
 // except Excel Redaction and document-based Gen AI Review, which are billed per
 // document as entered — not a monthly rate, so no ×12.
+// Audio transcription, machine translation, two-factor auth and Excel redaction can be
+// committed upfront OR taken pay-as-you-go — never both. A PAYG add-on has no committed qty.
+const DISCOVER_PAYG_ADDONS = {
+  active_gb:            { sku: 'NRTCLGB',  name: 'Active Storage',               per: 'GB/month', rateKey: 'active_gb_month' },
+  archive_gb:           { sku: 'NRTCLAD',  name: 'Archive Storage',              per: 'GB/month', rateKey: 'archive_gb_month' },
+  file_transfer_gb:     { sku: 'NRTCLFT',  name: 'File Transfer Data',           per: 'GB/month', rateKey: 'file_transfer_gb_month' },
+  inactive_gb:          { sku: 'NRTCLREF', name: 'Inactive Data',                per: 'GB/month', rateKey: 'inactive_gb_month' },
+  eca_gb:               { sku: 'NRTECA',   name: 'Early Case Assessment',        per: 'GB/month', rateKey: 'eca_gb_month' },
+  audio_minutes:        { sku: 'NRTAUDIO', name: 'Audio Transcription',          per: 'minute',   rateKey: 'audio_transcription_minute_month' },
+  translation_docs:     { sku: 'NRTMLT',   name: 'Machine Language Translation', per: 'document', rateKey: 'machine_translation_doc_month' },
+  tfa_users:            { sku: 'NRTTFA',   name: 'Two-Factor Authentication',    per: 'user',     rateKey: 'two_factor_auth_user_month' },
+  excel_redaction_docs: { sku: 'NRTERDOC', name: 'Excel Redaction',              per: 'document', rateKey: 'excel_redaction_per_doc' }
+};
+function isDiscoverPayg(dc, field) { return !!(dc.payg && dc.payg[field]); }
+function discoverCommitQty(dc, field) { return isDiscoverPayg(dc, field) ? 0 : (dc[field] || 0); }
+// A copy of the SaaS config with every pay-as-you-go quantity zeroed, so pricing, the pooled
+// volume discount and the committed SKU rows only ever see what is actually committed.
+function discoverCommitView(dc) {
+  const v = { ...dc };
+  Object.keys(DISCOVER_PAYG_ADDONS).forEach(f => { if (isDiscoverPayg(dc, f)) v[f] = 0; });
+  return v;
+}
+// Whole-unit price in the quote currency (fmt() rounds to the nearest 100, which would show
+// $8,040 as $8,000).
+function fmtExact(usd) {
+  const cur = CURRENCIES[state.currency] || CURRENCIES.USD;
+  return cur.symbol + Math.round(usd * cur.rate).toLocaleString('en-US');
+}
+function fmtRate(usd) {
+  const cur = CURRENCIES[state.currency] || CURRENCIES.USD;
+  return cur.symbol + (usd * cur.rate).toFixed(2);
+}
+
 function discoverSaasBaseUSD(dc, nm) {
+  dc = discoverCommitView(dc);
   const df = 1 - discoverSaasVolumeDiscount(dc, nm).pct;
   const monthly = dc.active_gb * nm.active_gb_month * df
     + dc.archive_gb * nm.archive_gb_month * df
     + (dc.file_transfer_gb  || 0) * nm.file_transfer_gb_month * df
     + (dc.inactive_gb       || 0) * nm.inactive_gb_month * df
     + (dc.eca_gb            || 0) * nm.eca_gb_month
-    + (dc.audio_minutes     || 0) * nm.audio_transcription_minute_month
-    + (dc.translation_docs  || 0) * nm.machine_translation_doc_month
-    + (dc.tfa_users         || 0) * nm.two_factor_auth_user_month
+    + discoverCommitQty(dc, 'audio_minutes')    * nm.audio_transcription_minute_month
+    + discoverCommitQty(dc, 'translation_docs') * nm.machine_translation_doc_month
+    + discoverCommitQty(dc, 'tfa_users')        * nm.two_factor_auth_user_month
     + (dc.gen_ai_review_mode === 'active' ? dc.active_gb * nm.gen_ai_review_per_gb : 0);
-  const oneOff = (dc.excel_redaction_docs || 0) * nm.excel_redaction_per_doc
+  const oneOff = discoverCommitQty(dc, 'excel_redaction_docs') * nm.excel_redaction_per_doc
     + (dc.gen_ai_review_mode === 'document' ? (dc.gen_ai_review_docs || 0) * nm.gen_ai_review_per_doc : 0);
   return monthly * 12 + oneOff;
 }
@@ -969,9 +1006,44 @@ function discoverOnpremBaseUSD(dc, nm) {
     + nm.excel_redaction_per_instance * (dc.excel_redaction_instances || 0);
 }
 
+// Advantage SKUs for Discover. CSLT104 (Nuix Advantage Discover SaaS) is offered whenever
+// Discover SaaS is on the quote; CSLT107 Top Up 24 is offered on Discover-only quotes (Neo
+// quotes already have their own tier-based Top Up). Both are priced per unit per year and
+// sit in the Nuix Discover layer, shown under Advantage & Implementation in the summary.
+// A SKU with a fixed list price per currency. Pricing runs in USD and is converted for
+// display, so return the USD amount that converts back to exactly the local list price.
+function listPriceUSD(pricesByCurrency) {
+  const cur = CURRENCIES[state.currency] || CURRENCIES.USD;
+  const local = pricesByCurrency[cur.name];
+  return local != null ? local / cur.rate : pricesByCurrency.USD;
+}
+
+function discoverAdvantageSkuRows() {
+  const adv = state.advantageServices || {};
+  const C = cfg().consulting;
+  const rows = [];
+  // Support level (Bronze / Silver / Gold). A Discover-only quote has no included level, so
+  // the chosen one is priced in full at the same CSLT10xU prices as the Neo upgrades. On a
+  // Neo quote the level is priced with the Foundation tier instead.
+  const supKey = state.foundation.boosters.support;
+  if (isDiscoverSuite() && supKey) {
+    const sku  = { bronze: 'CSLT101U', silver: 'CSLT102U', gold: 'CSLT103U' }[supKey];
+    const name = { bronze: 'Advantage Bronze', silver: 'Advantage Silver', gold: 'Advantage Gold' }[supKey];
+    rows.push({ sku, name: `Support – ${name}`, qty: 1, unit: 'Per year', notes: '', unitBaseUSD: getSupportIncrementalCost(supKey, null), key: 'enh_discover_support' });
+  }
+  const advQty = parseInt(adv.discoverAdvantageQty) > 0 ? 1 : 0;   // yes/no — never more than one
+  if (state.enhancedCap.discover_saas.selected && advQty > 0)
+    rows.push({ sku: 'CSLT104', name: 'Nuix Advantage Discover SaaS', qty: advQty, unit: 'Per unit/year', notes: '', unitBaseUSD: listPriceUSD(C.cslt104_prices), key: 'enh_discover_advantage' });
+  const topUpQty = parseInt(adv.discoverTopUpQty) || 0;
+  if (isDiscoverSuite() && topUpQty > 0)
+    rows.push({ sku: 'CSLT107', name: 'Nuix Advantage – Top Up 24', qty: topUpQty, unit: 'Per unit/year', notes: '24 hours consulting', unitBaseUSD: listPriceUSD(C.cslt107_topup_prices), key: 'enh_discover_topup' });
+  return rows;
+}
+
 // Shared SKU-row builders for Discover SaaS/On-Prem, reused by every place that
 // needs to list them as line items (quote detail, SKU export, admin summary).
-function discoverSaasSkuRows(dc, nm) {
+function discoverSaasSkuRows(dcIn, nm) {
+  const dc = discoverCommitView(dcIn);
   const rows = [];
   const disc = discoverSaasVolumeDiscount(dc, nm);
   const volNote = `×12/yr · ${Math.round(disc.pct * 100)}% vol. disc.`;
@@ -984,6 +1056,12 @@ function discoverSaasSkuRows(dc, nm) {
   if (dc.translation_docs > 0)    rows.push({ sku: 'NRTMLT',    name: 'Nuix Discover SaaS – Machine Language Translation', qty: dc.translation_docs, unit: 'Per document/month', notes: '×12/yr', unitBaseUSD: nm.machine_translation_doc_month * 12,    key: 'enh_discoverSaas_translation' });
   if (dc.tfa_users > 0)           rows.push({ sku: 'NRTTFA',    name: 'Nuix Discover SaaS – Two-Factor Authentication', qty: dc.tfa_users,          unit: 'Per user/month',    notes: '×12/yr', unitBaseUSD: nm.two_factor_auth_user_month * 12,         key: 'enh_discoverSaas_tfa' });
   if (dc.excel_redaction_docs > 0) rows.push({ sku: 'NRTERDOC', name: 'Nuix Discover SaaS – Excel Redaction',          qty: dc.excel_redaction_docs, unit: 'Per document',     notes: 'one-off',  unitBaseUSD: nm.excel_redaction_per_doc,                 key: 'enh_discoverSaas_excelRedaction' });
+  // Pay-as-you-go add-ons: a $0 committed line that records the usage rate for billing
+  Object.entries(DISCOVER_PAYG_ADDONS).forEach(([field, a]) => {
+    if (!isDiscoverPayg(dcIn, field)) return;
+    rows.push({ sku: a.sku, name: `Nuix Discover SaaS – ${a.name} (Pay as you go)`, qty: 0, unit: 'Pay as you go',
+      notes: `billed on usage · ${fmtRate(nm[a.rateKey])} per ${a.per}`, unitBaseUSD: 0, key: `enh_discoverSaas_payg_${field}` });
+  });
   if (dc.gen_ai_review_mode === 'active' && dc.active_gb > 0)
     rows.push({ sku: 'NRTAIACT', name: 'Nuix Discover SaaS – Gen AI Review (Active Data)', qty: dc.active_gb,        unit: 'Per GB/month', notes: '×12/yr', unitBaseUSD: nm.gen_ai_review_per_gb * 12,               key: 'enh_discoverSaas_genaiActive' });
   if (dc.gen_ai_review_mode === 'document' && dc.gen_ai_review_docs > 0)
@@ -1069,6 +1147,7 @@ function calcPrices() {
   const nm = C.enhanced_capabilities.nuix_modules;
   if (ec.discover_saas.selected)     ecBase += discoverSaasBaseUSD(ec.discover_saas, nm.discover_saas);
   if (ec.discover_onprem.selected)   ecBase += discoverOnpremBaseUSD(ec.discover_onprem, nm.discover_onprem);
+  discoverAdvantageSkuRows().forEach(r => { ecBase += r.unitBaseUSD * r.qty; });
   if (ec.adaptive_security.selected) ecBase += nm.adaptive_security.price_per_endpoint * ec.adaptive_security.endpoints + nm.adaptive_security.price_per_user * ec.adaptive_security.users + nm.adaptive_security.price_per_server * ec.adaptive_security.servers;
   if (state.visualisation.selected) ecBase += getVisualisationBundlePricing(state.visualisation).totalBaseUSD;
   if (ec.ecc && ec.ecc.selected)                 ecBase += nm.ecc.price_per_endpoint * ec.ecc.endpoints;
@@ -2761,7 +2840,7 @@ function renderStepAdvantage() {
       b = C.foundation_boosters[tier];
       baseSupport = t.support;
     } else {
-      baseSupport = 'Advantage Bronze';
+      baseSupport = isDiscoverSuite() ? 'No Advantage' : 'Advantage Bronze';
       b = null;
     }
   } else {
@@ -2771,7 +2850,7 @@ function renderStepAdvantage() {
       b = C.foundation_boosters[tier];
       baseSupport = t.support;
     } else {
-      baseSupport = 'Advantage Bronze';
+      baseSupport = isDiscoverSuite() ? 'No Advantage' : 'Advantage Bronze';
       b = null;
     }
   }
@@ -2889,10 +2968,50 @@ function renderStepAdvantage() {
       </div>
     </div>`;
 
+  const advQty   = parseInt(state.advantageServices.discoverAdvantageQty) > 0 ? 1 : 0;
+  const topUpQty = parseInt(state.advantageServices.discoverTopUpQty) || 0;
+  const discoverQtyCard = (title, sku, price, desc, stateKey, qty, yesNo = false) => `
+    <div class="config-section" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:20px 24px;margin-bottom:16px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+        <div style="flex:1;min-width:260px">
+          <div style="font-size:14px;font-weight:700;color:#1a1a2e">${title}</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:3px">SKU: ${sku} · ${fmtExact(price)} per unit per year</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:2px">${desc}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          ${yesNo ? `
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#1a1a2e;cursor:pointer">
+            <input type="checkbox" ${qty > 0 ? 'checked' : ''} style="width:18px;height:18px;accent-color:#003080;cursor:pointer"
+              onchange="state.advantageServices.${stateKey}=this.checked?1:0;updateLiveQuote()"> Include
+          </label>` : `
+          <input type="number" min="0" step="1" value="${qty}" style="width:80px;border:1.5px solid #e5e7eb;border-radius:8px;padding:8px 12px;font-size:15px;font-weight:700"
+            oninput="state.advantageServices.${stateKey}=Math.max(0,parseInt(this.value)||0);updateLiveQuote()">
+          <span style="font-size:13px;color:#6b7280">units</span>`}
+        </div>
+      </div>
+    </div>`;
+  const discoverAdvantageCard = state.enhancedCap.discover_saas.selected
+    ? discoverQtyCard('Nuix Advantage Discover SaaS (v1.0)', 'CSLT104', listPriceUSD(C.consulting.cslt104_prices),
+        'Quarterly meeting with a Nuix Customer Success Manager. Half day of training for up to 10 employees. Workflow usage assistance and success planning. 1 annual workflow and capability assessment. Nuix Advantage 24/5 Phone Support. 10 hours consulting.',
+        'discoverAdvantageQty', advQty, true)
+    : '';
+
+  // Discover-only quotes: the Discover Advantage SKUs only — no Neo support levels,
+  // implementation packages (Neo Foundation/Solution) or Component licence extension.
+  if (isDiscoverSuite()) return `
+    <h2>Advantage</h2>
+    <p class="step-sub">Choose a Nuix Advantage support level, or none, and add Nuix Advantage to this Discover quote.</p>
+    ${combinedSupportCard}
+    ${discoverAdvantageCard || '<p class="text-muted">Nuix Advantage Discover SaaS (CSLT104) is available once Discover SaaS is selected on the Discover step.</p>'}
+    ${discoverQtyCard('Nuix Advantage – Top Up 24', 'CSLT107', listPriceUSD(C.consulting.cslt107_topup_prices),
+      '24 hours consulting. Product is co-termed with the customer\'s existing Advantage contract. Top up hours carry over if the customer renews their Advantage contract.',
+      'discoverTopUpQty', topUpQty)}`;
+
   return `
     <h2>Advantage &amp; Implementation</h2>
     <p class="step-sub">Upgrade your Nuix Advantage support level, add Advantage hours, or include an implementation package.</p>
     ${combinedSupportCard}
+    ${discoverAdvantageCard}
     ${implSection}
     ${componentLicenseCard}`;
 }
@@ -2995,7 +3114,20 @@ function discoverSaasDiscountBoxInner(ds, dsNm) {
       <div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;color:#003080"><span style="font-weight:700">Discount tier applied</span><span style="font-weight:800">${dsDiscPctLabel} off</span></div>
       <div style="font-size:10px;color:#6B7280;margin-top:2px">${tierRangeLabel} &middot; applied equally to all four SKUs above</div>
       <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0 0;margin-top:6px;border-top:1px solid #EEF1F6;color:#166534"><span style="font-weight:700">Discounted combined total</span><span style="font-weight:800">${fmt(dsDisc.monthlyList * (1 - dsDisc.pct))}/mo</span></div>
+    </div>
   `;
+}
+
+// One Discover SaaS quantity input with its Pay as you go checkbox (exclusive with a commit)
+function dsPaygField(ds, nm, field, label, skuCode) {
+  const payg = isDiscoverPayg(ds, field);
+  const a = DISCOVER_PAYG_ADDONS[field];
+  return `<div class="form-group"><label>${label}</label>
+    <input type="number" class="ec-qty" data-mod="discover_saas" data-field="${field}" min="0" value="${payg ? 0 : ds[field]}" ${payg ? 'disabled' : ''}>
+    <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;font-weight:600;color:#374151;cursor:pointer">
+      <input type="checkbox" class="ec-payg" data-field="${field}" ${payg ? 'checked' : ''} style="width:15px;height:15px;accent-color:#003080"> Pay as you go
+    </label>
+    <span style="font-size:10px;color:#6B7280">${payg ? `Billed on usage at ${fmtRate(nm[a.rateKey])} per ${a.per} &middot; no upfront commit` : `${fmtRate(nm[a.rateKey])}/${a.per.replace('GB/month','GB/mo')} &middot; ${skuCode} &middot; commit upfront, or tick Pay as you go`}</span></div>`;
 }
 
 function renderDiscover() {
@@ -3009,17 +3141,17 @@ function renderDiscover() {
   const dsInputs = dsSel ? `
     <div class="ec-section-title" style="margin:14px 0 8px">Storage &amp; data &middot; $/GB per month</div>
     <div class="ec-inputs">
-      <div class="form-group"><label>Active data (GB)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="active_gb" min="0" value="${ds.active_gb}"><span style="font-size:10px;color:#6B7280">$${dsNm.active_gb_month}/GB/mo &middot; NRTCLGB</span></div>
-      <div class="form-group"><label>Archive data (GB)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="archive_gb" min="0" value="${ds.archive_gb}"><span style="font-size:10px;color:#6B7280">$${dsNm.archive_gb_month}/GB/mo &middot; NRTCLAD</span></div>
-      <div class="form-group"><label>File transfer data (GB)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="file_transfer_gb" min="0" value="${ds.file_transfer_gb}"><span style="font-size:10px;color:#6B7280">$${dsNm.file_transfer_gb_month}/GB/mo &middot; NRTCLFT</span></div>
-      <div class="form-group"><label>Inactive data (GB)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="inactive_gb" min="0" value="${ds.inactive_gb}"><span style="font-size:10px;color:#6B7280">$${dsNm.inactive_gb_month}/GB/mo &middot; NRTCLREF</span></div>
+      ${dsPaygField(ds, dsNm, 'active_gb', 'Active data (GB)', 'NRTCLGB')}
+      ${dsPaygField(ds, dsNm, 'archive_gb', 'Archive data (GB)', 'NRTCLAD')}
+      ${dsPaygField(ds, dsNm, 'file_transfer_gb', 'File transfer data (GB)', 'NRTCLFT')}
+      ${dsPaygField(ds, dsNm, 'inactive_gb', 'Inactive data (GB)', 'NRTCLREF')}
     </div>
 
     <div id="ds-vol-discount" style="margin-top:14px;border:1px solid #0056e3;border-radius:8px;background:#fff;padding:12px 14px">${discoverSaasDiscountBoxInner(ds, dsNm)}</div>
 
     <div class="ec-section-title" style="margin:14px 0 8px">Early case assessment</div>
     <div class="ec-inputs">
-      <div class="form-group"><label>ECA hosted data (GB/month)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="eca_gb" min="0" value="${ds.eca_gb}"><span style="font-size:10px;color:#6B7280">$${dsNm.eca_gb_month}/GB/mo &middot; not part of the volume discount &middot; NRTECA</span></div>
+      ${dsPaygField(ds, dsNm, 'eca_gb', 'ECA hosted data (GB/month)', 'NRTECA')}
     </div>
 
     <div class="ec-section-title" style="margin:14px 0 8px">Gen AI review &middot; choose one pricing method</div>
@@ -3037,10 +3169,10 @@ function renderDiscover() {
 
     <div class="ec-section-title" style="margin:14px 0 8px">Additional add-ons</div>
     <div class="ec-inputs">
-      <div class="form-group"><label>Audio transcription (min/mo)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="audio_minutes" min="0" value="${ds.audio_minutes}"></div>
-      <div class="form-group"><label>Machine translation (docs/mo)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="translation_docs" min="0" value="${ds.translation_docs}"></div>
-      <div class="form-group"><label>Two-factor auth (users)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="tfa_users" min="0" value="${ds.tfa_users}"></div>
-      <div class="form-group"><label>Excel redaction (docs/yr)</label><input type="number" class="ec-qty" data-mod="discover_saas" data-field="excel_redaction_docs" min="0" value="${ds.excel_redaction_docs}"></div>
+      ${dsPaygField(ds, dsNm, 'audio_minutes', 'Audio transcription (min/mo)', 'NRTAUDIO')}
+      ${dsPaygField(ds, dsNm, 'translation_docs', 'Machine translation (docs/mo)', 'NRTMLT')}
+      ${dsPaygField(ds, dsNm, 'tfa_users', 'Two-factor auth (users)', 'NRTTFA')}
+      ${dsPaygField(ds, dsNm, 'excel_redaction_docs', 'Excel redaction (docs/yr)', 'NRTERDOC')}
     </div>` : '';
 
   const dsCard = `
@@ -3092,7 +3224,7 @@ function renderDiscover() {
   return `
     <div class="card">
       <div class="card-title">Layer 3 — Configure</div>
-      <h2>Discover <span class="chip">Optional</span></h2>
+      <h2>Discover ${isDiscoverSuite() ? '' : '<span class="chip">Optional</span>'}</h2>
       <div class="ec-grid">${dsCard}${opCard}</div>
     </div>`;
 }
@@ -3124,7 +3256,9 @@ function renderNonProd() {
           <div class="ec-price">${price} <span style="font-size:10px;font-weight:400;color:#6B7280">&middot; ${s.sku}</span></div>
         </div>`;
     }).join('');
-    return `<div class="ec-section-title">${fam}</div><div class="ec-grid">${cards}</div>`;
+    // The Discover test environments are On-Prem only — label them so they aren't read as SaaS
+    const famLabel = fam === 'Nuix Discover' ? 'Nuix Discover (On-Prem)' : fam;
+    return `<div class="ec-section-title">${famLabel}</div><div class="ec-grid">${cards}</div>`;
   }).join('');
 
   return `
@@ -3567,6 +3701,7 @@ function renderStep7() {
   const tp3 = C.enhanced_capabilities.third_party;
   if (ec3.discover_saas?.selected)   discoverSaasSkuRows(ec3.discover_saas, nm3.discover_saas).forEach(r     => skuRows.push({ section: 'enhanced', layer: 'enhanced', ...r }));
   if (ec3.discover_onprem?.selected) discoverOnpremSkuRows(ec3.discover_onprem, nm3.discover_onprem).forEach(r => skuRows.push({ section: 'enhanced', layer: 'enhanced', ...r }));
+  discoverAdvantageSkuRows().forEach(r => skuRows.push({ section: 'consulting', layer: 'enhanced', ...r }));
   if (ec3.adaptive_security?.selected) {
     if (ec3.adaptive_security.endpoints > 0) skuRows.push({ section: 'enhanced', sku: 'ENDPT001',  name: 'Adaptive Security – Endpoint', qty: ec3.adaptive_security.endpoints, unit: 'Per endpoint/yr', layer: 'enhanced', unitBaseUSD: nm3.adaptive_security.price_per_endpoint });
     if (ec3.adaptive_security.users > 0)     skuRows.push({ section: 'enhanced', sku: 'ENDPTUSER', name: 'Adaptive Security – User',     qty: ec3.adaptive_security.users,     unit: 'Per user/yr',    layer: 'enhanced', unitBaseUSD: nm3.adaptive_security.price_per_user });
@@ -4079,6 +4214,7 @@ function buildSkuRows() {
   const tp = C.enhanced_capabilities.third_party;
   if (ec.discover_saas?.selected)   discoverSaasSkuRows(ec.discover_saas, nm.discover_saas).forEach(r     => rows.push({ layer: 'enhanced', category: 'nuixSoftware', ...r }));
   if (ec.discover_onprem?.selected) discoverOnpremSkuRows(ec.discover_onprem, nm.discover_onprem).forEach(r => rows.push({ layer: 'enhanced', category: 'nuixSoftware', ...r }));
+  discoverAdvantageSkuRows().forEach(r => rows.push({ layer: 'enhanced', category: 'nuixServices', ...r }));
   if (ec.adaptive_security?.selected) {
     if (ec.adaptive_security.endpoints > 0) rows.push({ sku: 'ENDPT001',  name: 'Adaptive Security – Endpoint', qty: ec.adaptive_security.endpoints, unit: 'Per endpoint/yr', notes: '', layer: 'enhanced', unitBaseUSD: nm.adaptive_security.price_per_endpoint, key: 'enh_adaptiveSecurity_endpoint', category: 'nuixSoftware' });
     if (ec.adaptive_security.users > 0)     rows.push({ sku: 'ENDPTUSER', name: 'Adaptive Security – User',     qty: ec.adaptive_security.users,     unit: 'Per user/yr',    notes: '', layer: 'enhanced', unitBaseUSD: nm.adaptive_security.price_per_user, key: 'enh_adaptiveSecurity_user', category: 'nuixSoftware' });
@@ -4369,7 +4505,7 @@ function isStepSkipped(n) {
   if (n === 8)  return true;                       // Solutions Library step removed — bundled automatically now
   if (n === 15) return isPartnerMarginsSkipped();
   if (n === 5)  return isUpsellBuilderSkipped() || isDiscoverSuite();
-  if (isDiscoverSuite() && [4, 6, 7, 9, 10, 13].includes(n)) return true;
+  if (isDiscoverSuite() && [4, 6, 7, 9, 10].includes(n)) return true;
   return false;
 }
 
@@ -4556,7 +4692,7 @@ function updateProgress() {
     // it's now bundled automatically with Enrich/Semantic Search/Transcription in
     // the AI Suite step. Keep the blank slot so the remaining labels stay aligned
     // to their step numbers (mirrors the '' placeholder at index 1 for skipped step 2).
-    'Nuix Neo Foundation', '', 'AI Suite', 'Visualisation', 'Discover', 'Add Ons', 'Advantage & Implementation',
+    'Nuix Neo Foundation', '', 'AI Suite', 'Visualisation', 'Discover', 'Add Ons', isDiscoverSuite() ? 'Advantage' : 'Advantage & Implementation',
     'Test Environments', 'Partner Margins', 'Quote summary'
   ];
   const groups = [
@@ -5119,6 +5255,17 @@ function bindStepEvents() {
         box.innerHTML = discoverSaasDiscountBoxInner(state.enhancedCap.discover_saas, cfg().enhanced_capabilities.nuix_modules.discover_saas);
       }
       updateLiveQuote();
+    });
+  });
+
+  // Discover SaaS add-ons: pay-as-you-go is exclusive with an upfront commit
+  document.querySelectorAll('.ec-payg').forEach(chk => {
+    chk.addEventListener('change', () => {
+      const ds = state.enhancedCap.discover_saas;
+      if (!ds.payg) ds.payg = {};
+      ds.payg[chk.dataset.field] = chk.checked;
+      if (chk.checked) ds[chk.dataset.field] = 0;
+      showStep(state.currentStep, true);
     });
   });
 
@@ -5979,6 +6126,24 @@ function renderROIPanel() {
 }
 
 
+// Opens a generated quote document in a new tab. If the browser blocks the popup (or it
+// can't open one, e.g. an embedded preview), show it in a full-screen overlay instead so
+// the quote can still be viewed, printed or saved as PDF from there.
+function openQuoteDocument(html) {
+  const win = window.open('', '_blank');
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+    return;
+  }
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:#fff;display:flex;flex-direction:column';
+  overlay.innerHTML = '<div style="padding:8px 14px;background:#003080;display:flex;justify-content:flex-end"><button style="background:#fff;color:#003080;border:none;border-radius:6px;padding:6px 14px;font-weight:700;cursor:pointer">Close ✕</button></div><iframe style="flex:1;border:0;width:100%"></iframe>';
+  overlay.querySelector('iframe').srcdoc = html;
+  overlay.querySelector('button').onclick = () => overlay.remove();
+  document.body.appendChild(overlay);
+}
+
 function generateSKUOrder() {
   const C    = cfg();
   const cust = state.customer;
@@ -6309,9 +6474,7 @@ function generateSKUOrder() {
 </body>
 </html>`;
 
-  const win = window.open('', '_blank');
-  win.document.write(html);
-  win.document.close();
+  openQuoteDocument(html);
 }
 
 function generateBudgetQuote(variant) {
@@ -6411,6 +6574,7 @@ function generateBudgetQuote(variant) {
   const tp = C.enhanced_capabilities.third_party;
   if (ec.discover_saas?.selected)   discoverSaasSkuRows(ec.discover_saas, nm.discover_saas).forEach(r     => rows.push({ layer: 'enhanced', ...r }));
   if (ec.discover_onprem?.selected) discoverOnpremSkuRows(ec.discover_onprem, nm.discover_onprem).forEach(r => rows.push({ layer: 'enhanced', ...r }));
+  discoverAdvantageSkuRows().forEach(r => rows.push({ layer: 'enhanced', ...r }));
   if (ec.adaptive_security?.selected) {
     if (ec.adaptive_security.endpoints > 0) rows.push({ sku: 'ENDPT001',  name: 'Adaptive Security – Endpoint', qty: ec.adaptive_security.endpoints, unit: 'Per endpoint/yr', layer: 'enhanced', unitBaseUSD: nm.adaptive_security.price_per_endpoint });
     if (ec.adaptive_security.users > 0)     rows.push({ sku: 'ENDPTUSER', name: 'Adaptive Security – User',     qty: ec.adaptive_security.users,     unit: 'Per user/yr',    layer: 'enhanced', unitBaseUSD: nm.adaptive_security.price_per_user });
@@ -6796,9 +6960,7 @@ function generateBudgetQuote(variant) {
 </body>
 </html>`;
 
-  const win = window.open('', '_blank');
-  win.document.write(html);
-  win.document.close();
+  openQuoteDocument(html);
 }
 
 function generateBundledQuote() {

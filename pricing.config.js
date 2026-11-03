@@ -242,6 +242,9 @@
   consulting: {
     cslt300_price: 31310,
     cslt301_price: 46020,
+    // Fixed list prices per currency (per unit per year) — used as-is rather than converting from USD
+    cslt104_prices:      { USD: 8040, AUD: 11490, CAD: 10680, EUR: 7100, GBP: 6350 },   // Nuix Advantage Discover SaaS (v1.0)
+    cslt107_topup_prices: { USD: 6700, AUD: 9600,  CAD: 8900,  EUR: 5900, GBP: 5300 },   // Nuix Advantage – Top Up 24 (24 hours consulting), Discover quotes
     roles: {
       consultant:           { name: 'Consultant',           daily_rate_usd: 2700 },
       senior_consultant:    { name: 'Senior Consultant',    daily_rate_usd: 3600 },
