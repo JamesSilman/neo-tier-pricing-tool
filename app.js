@@ -528,6 +528,14 @@ function getSupportIncrementalCost(selectedKey, tierSupportName) {
   return Math.max(0, selected - included);
 }
 
+// SKU for a Neo support upgrade. Gold is split by what the tier already includes:
+// CSLT103US upgrades from Bronze (Standard/Accelerate), CSLT103UMD from Silver (Performance).
+// Bronze is never an upgrade on Neo (every tier includes at least Bronze).
+function neoSupportUpgradeSku(selectedKey, tierSupportName) {
+  if (selectedKey === 'gold') return tierSupportName === 'Advantage Silver' ? 'CSLT103UMD' : 'CSLT103US';
+  return { bronze: 'CSLT101', silver: 'CSLT102U' }[selectedKey];
+}
+
 function getContractYears() {
   if (state.customer.isPOC) return (state.customer.pocDuration || 3) / 12;
   return (parseInt(state.customer.contractMonths) || 12) / 12;
@@ -1046,7 +1054,7 @@ function discoverAdvantageSkuRows() {
   // Neo quote the level is priced with the Foundation tier instead.
   const supKey = state.foundation.boosters.support;
   if (isDiscoverSuite() && supKey) {
-    const sku  = { bronze: 'CSLT101U', silver: 'CSLT102U', gold: 'CSLT103U' }[supKey];
+    const sku  = { bronze: 'CSLT101', silver: 'CSLT102', gold: 'CSLT103' }[supKey];
     const name = { bronze: 'Advantage Bronze', silver: 'Advantage Silver', gold: 'Advantage Gold' }[supKey];
     rows.push({ sku, name: `Support – ${name}`, qty: 1, unit: 'Per year', notes: '', unitBaseUSD: getSupportIncrementalCost(supKey, null), key: 'enh_discover_support' });
   }
@@ -3799,8 +3807,7 @@ function renderStep7() {
     const effectiveSupport5c = bst5.support ? supNames5c[bst5.support] : C.consumption_tiers[tier].support;
     skuRows.push({ section: 'consulting', sku: includedSupportSkus5c[effectiveSupport5c], name: effectiveSupport5c, qty: 1, unit: 'Per year', layer: 'foundation', unitBaseUSD: 0 });
     if (bst5.support) {
-      const supSkus5  = { bronze: 'CSLT101U', silver: 'CSLT102U', gold: 'CSLT103U' };
-      skuRows.push({ section: 'consulting', sku: supSkus5[bst5.support], name: `Support Upgrade – ${supNames5c[bst5.support]}`, qty: 1, unit: 'Per year', layer: 'foundation', unitBaseUSD: getSupportIncrementalCost(bst5.support, C.consumption_tiers[tier].support) });
+      skuRows.push({ section: 'consulting', sku: neoSupportUpgradeSku(bst5.support, C.consumption_tiers[tier].support), name: `Support Upgrade – ${supNames5c[bst5.support]}`, qty: 1, unit: 'Per year', layer: 'foundation', unitBaseUSD: getSupportIncrementalCost(bst5.support, C.consumption_tiers[tier].support) });
     }
   } else if (tierSuffix2 && b2) {
     skuRows.push({ section: 'consulting', sku: 'TRNNEO001', name: 'Training Credits', qty: t2.training_hours, unit: 'Credits', layer: 'foundation', unitBaseUSD: 0 });
@@ -3811,8 +3818,7 @@ function renderStep7() {
     const effectiveSupport5 = bst5.support ? supNames5[bst5.support] : t2.support;
     skuRows.push({ section: 'consulting', sku: includedSupportSkus5[effectiveSupport5], name: effectiveSupport5, qty: 1, unit: 'Per year', layer: 'foundation', unitBaseUSD: 0 });
     if (bst5.support) {
-      const supSkus5  = { bronze: 'CSLT101U', silver: 'CSLT102U', gold: 'CSLT103U' };
-      skuRows.push({ section: 'consulting', sku: supSkus5[bst5.support], name: `Support Upgrade – ${supNames5[bst5.support]}`, qty: 1, unit: 'Per year', layer: 'foundation', unitBaseUSD: getSupportIncrementalCost(bst5.support, t2.support) });
+      skuRows.push({ section: 'consulting', sku: neoSupportUpgradeSku(bst5.support, t2.support), name: `Support Upgrade – ${supNames5[bst5.support]}`, qty: 1, unit: 'Per year', layer: 'foundation', unitBaseUSD: getSupportIncrementalCost(bst5.support, t2.support) });
     }
   }
   if (['agenticBYOAI', 'byoAIAdvanced', 'byoAIGraph'].some(k => state.aiSuite[k])) {
@@ -4187,8 +4193,7 @@ function buildSkuRows() {
     const effectiveSupportC = bst.support ? supNamesC[bst.support] : ct.support;
     rows.push({ sku: includedSupportSkusC[effectiveSupportC], name: effectiveSupportC, qty: 1, unit: 'Per year', notes: 'Advantage entitlement', layer: 'foundation', unitBaseUSD: 0, key: 'found_support_included', category: 'nuixServices' });
     if (bst.support) {
-      const supSkus  = { bronze: 'CSLT101U', silver: 'CSLT102U', gold: 'CSLT103U' };
-      rows.push({ sku: supSkus[bst.support], name: `Support Upgrade – ${supNamesC[bst.support]}`, qty: 1, unit: 'Per year', notes: '', layer: 'foundation', unitBaseUSD: getSupportIncrementalCost(bst.support, ct.support), key: 'found_support', category: 'nuixServices' });
+      rows.push({ sku: neoSupportUpgradeSku(bst.support, ct.support), name: `Support Upgrade – ${supNamesC[bst.support]}`, qty: 1, unit: 'Per year', notes: '', layer: 'foundation', unitBaseUSD: getSupportIncrementalCost(bst.support, ct.support), key: 'found_support', category: 'nuixServices' });
     }
   } else {
     const foundationSkus = { light: 'NEO007S', core: 'NEO007MD', rapid: 'NEO007L' };
@@ -4215,8 +4220,7 @@ function buildSkuRows() {
       const effectiveSupport = bst.support ? supNames[bst.support] : t.support;
       rows.push({ sku: includedSupportSkus[effectiveSupport], name: effectiveSupport, qty: 1, unit: 'Per year', notes: 'Advantage entitlement', layer: 'foundation', unitBaseUSD: 0, key: 'found_support_included', category: 'nuixServices' });
       if (bst.support) {
-        const supSkus  = { bronze: 'CSLT101U', silver: 'CSLT102U', gold: 'CSLT103U' };
-        rows.push({ sku: supSkus[bst.support], name: `Support Upgrade – ${supNames[bst.support]}`, qty: 1, unit: 'Per year', notes: 'Incremental upgrade', layer: 'foundation', unitBaseUSD: getSupportIncrementalCost(bst.support, t.support), key: 'found_support', category: 'nuixServices' });
+        rows.push({ sku: neoSupportUpgradeSku(bst.support, t.support), name: `Support Upgrade – ${supNames[bst.support]}`, qty: 1, unit: 'Per year', notes: 'Incremental upgrade', layer: 'foundation', unitBaseUSD: getSupportIncrementalCost(bst.support, t.support), key: 'found_support', category: 'nuixServices' });
       }
     }
   }
@@ -6687,8 +6691,7 @@ function generateBudgetQuote(variant) {
     const effectiveSupportQ = bst.support ? supNamesQ[bst.support] : C.consumption_tiers[tier].support;
     rows.push({ sku: includedSupportSkusQ[effectiveSupportQ], name: effectiveSupportQ, qty: 1, unit: 'Per year', layer: 'foundation', unitBaseUSD: 0 });
     if (bst.support) {
-      const supSkus  = { bronze: 'CSLT101U', silver: 'CSLT102U', gold: 'CSLT103U' };
-      rows.push({ sku: supSkus[bst.support], name: `Support Upgrade – ${supNamesQ[bst.support]}`, qty: 1, unit: 'Per year', layer: 'foundation', unitBaseUSD: getSupportIncrementalCost(bst.support, C.consumption_tiers[tier].support) });
+      rows.push({ sku: neoSupportUpgradeSku(bst.support, C.consumption_tiers[tier].support), name: `Support Upgrade – ${supNamesQ[bst.support]}`, qty: 1, unit: 'Per year', layer: 'foundation', unitBaseUSD: getSupportIncrementalCost(bst.support, C.consumption_tiers[tier].support) });
     }
   } else if (tierSuffix) {
     rows.push({ sku: 'TRNNEO001', name: 'Training Credits', qty: t.training_hours, unit: 'Credits', layer: 'foundation', unitBaseUSD: 0 });
@@ -6699,8 +6702,7 @@ function generateBudgetQuote(variant) {
     const effectiveSupport = bst.support ? supNames[bst.support] : t.support;
     rows.push({ sku: includedSupportSkus[effectiveSupport], name: effectiveSupport, qty: 1, unit: 'Per year', layer: 'foundation', unitBaseUSD: 0 });
     if (bst.support) {
-      const supSkus  = { bronze: 'CSLT101U', silver: 'CSLT102U', gold: 'CSLT103U' };
-      rows.push({ sku: supSkus[bst.support], name: `Support Upgrade – ${supNames[bst.support]}`, qty: 1, unit: 'Per year', layer: 'foundation', unitBaseUSD: getSupportIncrementalCost(bst.support, t.support) });
+      rows.push({ sku: neoSupportUpgradeSku(bst.support, t.support), name: `Support Upgrade – ${supNames[bst.support]}`, qty: 1, unit: 'Per year', layer: 'foundation', unitBaseUSD: getSupportIncrementalCost(bst.support, t.support) });
     }
   }
   // BYO AI implementation training hours
@@ -7557,7 +7559,7 @@ function showPriceList() {
     worker:        { light: 'NEOBWS',   core: 'NEOBWMD',  rapid: 'NEOBWL' },
     volume:        { light: 'NEO-BOOST-VOL-L', core: 'NEO-BOOST-VOL-C', rapid: 'NEO-BOOST-VOL-R' },
     user:          { light: 'NEOBRS',   core: 'NEOBRMD',  rapid: 'NEOBRL' },
-    support:       { bronze: 'CSLT101U', silver: 'CSLT102U', gold: 'CSLT103U' },
+    support:       { bronze: 'CSLT101', silver: 'CSLT102 / CSLT102U', gold: 'CSLT103 / CSLT103US / CSLT103UMD' },
     ai: {
       ai_bundle:        { light: 'NEOAIBNDL01S', core: 'NEOAIBNDL01MD', rapid: 'NEOAIBNDL01L' },
       enrich:           { light: 'NEOAI001S', core: 'NEOAI001MD', rapid: 'NEOAI001L' },
@@ -7825,9 +7827,12 @@ function showSKUListPage() {
     ['Layer 1 – Foundation Booster (Consumption)','NEOBTBS','Additional TB – Standard (Consumption)','Per TB/yr','$31,000',''],
     ['Layer 1 – Foundation Booster (Consumption)','NEOBTBMD','Additional TB – Accelerate (Consumption)','Per TB/yr','$20,000',''],
     ['Layer 1 – Foundation Booster (Consumption)','NEOBTBL','Additional TB – Performance (Consumption)','Per TB/yr','$19,200',''],
-    ['Layer 4 – Advantage & Implementation','CSLT101U','Support Upgrade – Advantage Bronze','Per year','$30,000','Included in Standard; incremental for Accelerate/Performance'],
-    ['Layer 4 – Advantage & Implementation','CSLT102U','Support Upgrade – Advantage Silver','Per year','$60,000','$30,000 incremental from Bronze'],
-    ['Layer 4 – Advantage & Implementation','CSLT103U','Support Upgrade – Advantage Gold','Per year','$105,000','$75,000 from Bronze · $45,000 from Silver'],
+    ['Layer 4 – Advantage & Implementation','CSLT101','Support – Advantage Bronze','Per year','$30,000','Discover-only quotes (no included level)'],
+    ['Layer 4 – Advantage & Implementation','CSLT102U','Support Upgrade – Advantage Silver','Per year','$60,000','Neo only · $30,000 incremental from Bronze'],
+    ['Layer 4 – Advantage & Implementation','CSLT102','Support – Advantage Silver','Per year','$60,000','Discover-only quotes (no included level)'],
+    ['Layer 4 – Advantage & Implementation','CSLT103','Support – Advantage Gold','Per year','$105,000','Discover-only quotes (no included level)'],
+    ['Layer 4 – Advantage & Implementation','CSLT103US','Support Upgrade Advantage Gold - Standard','Per year','$75,000','Neo only · upgrade from Bronze'],
+    ['Layer 4 – Advantage & Implementation','CSLT103UMD','Support Upgrade Advantage Gold - Accelerate','Per year','$45,000','Neo only · upgrade from Silver'],
     ['Layer 4 – Advantage & Implementation','CSLT101F','Advantage Bronze','Per year','$0','Included with Foundation tier'],
     ['Layer 4 – Advantage & Implementation','CSLT102F','Advantage Silver','Per year','$0','Included with Foundation tier'],
     ['Layer 4 – Advantage & Implementation','CSLT103F','Advantage Gold','Per year','$0','Included with Foundation tier'],

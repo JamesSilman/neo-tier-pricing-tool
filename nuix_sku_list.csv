@@ -15,9 +15,12 @@ Layer 1 – Foundation Booster (Consumption),NEOBTBS,Additional TB – Standard 
 Layer 1 – Foundation Booster (Consumption),NEOBTBMD,Additional TB – Accelerate (Consumption),Nuix Neo,Per TB/yr,"$20,000",,Y
 Layer 1 – Foundation Booster (Consumption),NEOBTBL,Additional TB – Performance (Consumption),Nuix Neo,Per TB/yr,"$19,200",,Y
 Layer 4 – Advantage & Implementation,CSLT107,Advantage - Top Up 24,Nuix Neo,Per hour,$280,,Y
-Layer 4 – Advantage & Implementation,CSLT101U,Support Upgrade – Advantage Bronze,Nuix Neo,Per year,"$30,000",Upgrade from Foundation,Y
-Layer 4 – Advantage & Implementation,CSLT102U,Support Upgrade – Advantage Silver,Nuix Neo,Per year,"$60,000",Upgrade from Foundation,Y
-Layer 4 – Advantage & Implementation,CSLT103U,Support Upgrade – Advantage Gold,Nuix Neo,Per year,"$105,000",Upgrade from Foundation,Y
+Layer 4 – Advantage & Implementation,CSLT101,Support – Advantage Bronze,Discover,Per year,"$30,000",Discover-only quotes (no included level),Y
+Layer 4 – Advantage & Implementation,CSLT102U,Support Upgrade – Advantage Silver,Nuix Neo,Per year,"$60,000",Neo only · upgrade from Bronze,Y
+Layer 4 – Advantage & Implementation,CSLT102,Support – Advantage Silver,Discover,Per year,"$60,000",Discover-only quotes (no included level),Y
+Layer 4 – Advantage & Implementation,CSLT103,Support – Advantage Gold,Discover,Per year,"$105,000",Discover-only quotes (no included level),Y
+Layer 4 – Advantage & Implementation,CSLT103US,Support Upgrade Advantage Gold - Standard,Nuix Neo,Per year,"$75,000",Neo only · upgrade from Bronze,Y
+Layer 4 – Advantage & Implementation,CSLT103UMD,Support Upgrade Advantage Gold - Accelerate,Nuix Neo,Per year,"$45,000",Neo only · upgrade from Silver,Y
 Layer 4 – Advantage & Implementation,CSLT101F,Advantage Bronze,Nuix Neo,Per year,$0,Included with Foundation tier,Y
 Layer 4 – Advantage & Implementation,CSLT102F,Advantage Silver,Nuix Neo,Per year,$0,Included with Foundation tier,Y
 Layer 4 – Advantage & Implementation,CSLT103F,Advantage Gold,Nuix Neo,Per year,$0,Included with Foundation tier,Y
