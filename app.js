@@ -6577,7 +6577,7 @@ function generateBudgetQuote(variant) {
   // 1 — Foundation tier
   const refTier2     = tier;
   const refTierSize2 = refTier2 === 'light' ? 'S' : refTier2 === 'core' ? 'MD' : refTier2 === 'rapid' ? 'L' : tierSuffix;
-  const refTierName2 = refTier2 ? refTier2.charAt(0).toUpperCase() + refTier2.slice(1) : '';
+  const refTierName2 = tierDisplayName(refTier2);
 
   if (state.pricingModel === 'consumption') {
     const ct = C.consumption_tiers[tier];
