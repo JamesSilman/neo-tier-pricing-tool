@@ -104,7 +104,13 @@
       },
       discover_onprem:   { name: 'Nuix Discover – On-Prem', description: 'On-premises review and analytics platform deployed in your own environment.',              pricing_model: 'per_instance_and_user', price_per_instance: 59540, price_per_user: 2380,
         price_per_gb: 4.32, predictive_coding_per_instance: 34020, ai_review_per_instance: 45500, enrich_per_instance: 45500,
-        ingestion_per_worker: 22340, excel_redaction_per_instance: 7000
+        ingestion_per_worker: 22340, excel_redaction_per_instance: 7000,
+        // Ingestions are the same price either way; the SKU depends on whether the customer is
+        // on Neo (NRTDISC01) or Component licensing (NW001).
+        ingestion_skus: {
+          neo:       { sku: 'NRTDISC01', label: 'Neo' },
+          component: { sku: 'NW001',     label: 'Component' }
+        }
       },
       adaptive_security: { name: 'Adaptive Security',       description: 'Endpoint security and insider threat detection across endpoints, users and servers.',       pricing_model: 'compound',              price_per_endpoint: 20,    price_per_user: 3000, price_per_server: 30000 },
       linkurious:        { name: 'Knowledge Graph',           description: 'Graph analytics for complex network and relationship analysis.',                           pricing_model: 'linkurious_tiers',

@@ -18,7 +18,7 @@ const state = {
       gen_ai_review_mode: 'none', gen_ai_review_docs: 0 },
     discover_onprem:   { selected: false, instances: 1, users: 1, capacity_gb: 0,
       predictive_coding_instances: 0, ai_review_instances: 0, enrich_instances: 0,
-      ingestion_workers: 0, excel_redaction_instances: 0 },
+      ingestion_workers: 0, ingestion_type: 'neo', excel_redaction_instances: 0 },
     adaptive_security: { selected: false, endpoints: 1, users: 1, servers: 1 },
     ecc:               { selected: false, endpoints: 1 },
     legal_hold:        { selected: false, custodians: 1 },
@@ -1095,7 +1095,12 @@ function discoverOnpremSkuRows(dc, nm) {
   if (dc.predictive_coding_instances > 0)  rows.push({ sku: 'NRTPCODE',     name: 'Nuix Discover On-Prem – Predictive Coding Add-on', qty: dc.predictive_coding_instances,  unit: 'Per instance/yr', notes: '', unitBaseUSD: nm.predictive_coding_per_instance, key: 'enh_discoverOnprem_predictiveCoding' });
   if (dc.ai_review_instances > 0)          rows.push({ sku: 'NRTDISCAI01',  name: 'Nuix Discover On-Prem – AI Review',               qty: dc.ai_review_instances,          unit: 'Per instance/yr', notes: '', unitBaseUSD: nm.ai_review_per_instance,          key: 'enh_discoverOnprem_aiReview' });
   if (dc.enrich_instances > 0)             rows.push({ sku: 'NRTDISCAI02',  name: 'Nuix Discover On-Prem – Enrich (OOTB Models)',    qty: dc.enrich_instances,             unit: 'Per instance/yr', notes: '', unitBaseUSD: nm.enrich_per_instance,             key: 'enh_discoverOnprem_enrich' });
-  if (dc.ingestion_workers > 0)            rows.push({ sku: 'NRTDISC01',    name: 'Nuix Discover On-Prem – Ingestions',              qty: dc.ingestion_workers,            unit: 'Per worker/yr',   notes: '', unitBaseUSD: nm.ingestion_per_worker,            key: 'enh_discoverOnprem_ingestions' });
+  if (dc.ingestion_workers > 0) {
+    // Neo → NRTDISC01, Component → NW001 (same price). Older saved quotes have no type → Neo.
+    const ingType = (dc.ingestion_type === 'component') ? 'component' : 'neo';
+    const ingSku  = nm.ingestion_skus[ingType];
+    rows.push({ sku: ingSku.sku, name: 'Nuix Discover On-Prem – Ingestions', qty: dc.ingestion_workers, unit: 'Per worker/yr', notes: ingSku.label, unitBaseUSD: nm.ingestion_per_worker, key: 'enh_discoverOnprem_ingestions_' + ingType });
+  }
   if (dc.excel_redaction_instances > 0)    rows.push({ sku: 'NRTDISCXLR01', name: 'Nuix Discover On-Prem – Native Excel Redaction',  qty: dc.excel_redaction_instances,    unit: 'Per instance/yr', notes: '', unitBaseUSD: nm.excel_redaction_per_instance,    key: 'enh_discoverOnprem_excelRedaction' });
   return rows;
 }
@@ -3233,7 +3238,13 @@ function renderDiscover() {
 
     <div class="ec-section-title" style="margin:14px 0 8px">Ingestions &amp; redaction</div>
     <div class="ec-inputs">
-      <div class="form-group"><label>Ingestions (workers)</label><input type="number" class="ec-qty" data-mod="discover_onprem" data-field="ingestion_workers" min="0" value="${op.ingestion_workers}"></div>
+      <div>
+        <div class="form-group"><label>Ingestions (workers)</label><input type="number" class="ec-qty" data-mod="discover_onprem" data-field="ingestion_workers" min="0" value="${op.ingestion_workers}"></div>
+        <div class="form-group" style="margin-top:8px"><label>Component or Neo</label><select class="ec-select" data-mod="discover_onprem" data-field="ingestion_type">
+          <option value="neo" ${op.ingestion_type !== 'component' ? 'selected' : ''}>${opNm.ingestion_skus.neo.label}</option>
+          <option value="component" ${op.ingestion_type === 'component' ? 'selected' : ''}>${opNm.ingestion_skus.component.label}</option>
+        </select></div>
+      </div>
       <div class="form-group"><label>Native Excel redaction (instances)</label><input type="number" class="ec-qty" data-mod="discover_onprem" data-field="excel_redaction_instances" min="0" value="${op.excel_redaction_instances}"></div>
     </div>` : '';
 
@@ -7830,9 +7841,9 @@ function showSKUListPage() {
     ['Layer 2 – AI Suite','NEOAI001S','Enrich – Standard','Per year','$50,000','Includes Solutions Library'],
     ['Layer 2 – AI Suite','NEOAI001MD','Enrich – Accelerate','Per year','$115,000','Includes Solutions Library'],
     ['Layer 2 – AI Suite','NEOAI001L','Enrich – Performance','Per year','$200,000','Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOS001S','Semantic – Standard','Per year','$50,000','Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOS001MD','Semantic – Accelerate','Per year','$115,000','Includes Solutions Library'],
-    ['Layer 2 – AI Suite','NEOS001L','Semantic – Performance','Per year','$200,000','Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOS001S','Semantic Search – Standard','Per year','$50,000','Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOS001MD','Semantic Search – Accelerate','Per year','$115,000','Includes Solutions Library'],
+    ['Layer 2 – AI Suite','NEOS001L','Semantic Search – Performance','Per year','$200,000','Includes Solutions Library'],
     ['Layer 2 – AI Suite','NEOS002S','Transcription – Standard','Per year','$50,000','Includes Solutions Library'],
     ['Layer 2 – AI Suite','NEOS002MD','Transcription – Accelerate','Per year','$115,000','Includes Solutions Library'],
     ['Layer 2 – AI Suite','NEOS002L','Transcription – Performance','Per year','$200,000','Includes Solutions Library'],
@@ -7868,7 +7879,8 @@ function showSKUListPage() {
     ['Layer 3 – Enhanced Capability','NRTPCODE','Nuix Discover On-Prem – Predictive Coding Add-on','Per instance/yr','$34,020',''],
     ['Layer 3 – Enhanced Capability','NRTDISCAI01','Nuix Discover On-Prem – AI Review','Per instance/yr','$45,500',''],
     ['Layer 3 – Enhanced Capability','NRTDISCAI02','Nuix Discover On-Prem – Enrich (OOTB Models)','Per instance/yr','$45,500',''],
-    ['Layer 3 – Enhanced Capability','NRTDISC01','Nuix Discover On-Prem – Ingestions','Per worker/yr','$22,340',''],
+    ['Layer 3 – Enhanced Capability','NRTDISC01','Nuix Discover On-Prem – Ingestions','Per worker/yr','$22,340','Neo licensing'],
+    ['Layer 3 – Enhanced Capability','NW001','Nuix Discover On-Prem – Ingestions','Per worker/yr','$22,340','Component licensing'],
     ['Layer 3 – Enhanced Capability','NRTDISCXLR01','Nuix Discover On-Prem – Native Excel Redaction','Per instance/yr','$7,000',''],
     ['Layer 3 – Enhanced Capability','ENDPT001','Adaptive Security – Endpoint','Per endpoint/yr','$20',''],
     ['Layer 3 – Enhanced Capability','ENDPTUSER','Adaptive Security – User','Per user/yr','$3,000',''],
@@ -8516,7 +8528,7 @@ function showPricingGuide() {
             <tr><td style="padding-left:24px">Predictive coding add-on <span class="sub-text">NRTPCODE</span></td><td>Per instance/yr</td><td class="price-cell" style="text-align:right">$34,020</td></tr>
             <tr><td style="padding-left:24px">AI Review <span class="sub-text">NRTDISCAI01</span></td><td>Per instance/yr</td><td class="price-cell" style="text-align:right">$45,500</td></tr>
             <tr><td style="padding-left:24px">Enrich — OOTB models <span class="sub-text">NRTDISCAI02</span></td><td>Per instance/yr</td><td class="price-cell" style="text-align:right">$45,500</td></tr>
-            <tr><td style="padding-left:24px">Ingestions <span class="sub-text">NRTDISC01</span></td><td>Per worker/yr</td><td class="price-cell" style="text-align:right">$22,340</td></tr>
+            <tr><td style="padding-left:24px">Ingestions <span class="sub-text">NRTDISC01 (Neo) · NW001 (Component)</span></td><td>Per worker/yr</td><td class="price-cell" style="text-align:right">$22,340</td></tr>
             <tr><td style="padding-left:24px">Native Excel redaction <span class="sub-text">NRTDISCXLR01</span></td><td>Per instance/yr</td><td class="price-cell" style="text-align:right">$7,000</td></tr>
           </tbody>
         </table>
