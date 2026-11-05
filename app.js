@@ -1220,10 +1220,10 @@ function calcPrices() {
   // Consulting
   let consBase = 0;
   if (state.advantageServices?.implementationPackage) {
-    consBase += C.consulting.cslt300_price;
+    consBase += listPriceUSD(C.consulting.cslt300_prices);
   }
   if (state.advantageServices?.solutionImplementationPackage) {
-    consBase += C.consulting.cslt301_price;
+    consBase += listPriceUSD(C.consulting.cslt301_prices);
   }
 
   const blendedPct = (state.discounts.blended || 0) / 100;
@@ -2916,9 +2916,9 @@ function renderStepAdvantage() {
   const trainingRate = b ? b.training_hour : 0;
   const byoAIPacks   = ['agenticBYOAI', 'byoAIAdvanced', 'byoAIGraph'].some(k => state.aiSuite[k]) ? 7 : 0;
   const implPkg      = state.advantageServices.implementationPackage;
-  const implPrice    = C.consulting.cslt300_price;
+  const implPrice    = listPriceUSD(C.consulting.cslt300_prices);
   const solImplPkg   = state.advantageServices.solutionImplementationPackage;
-  const solImplPrice = C.consulting.cslt301_price;
+  const solImplPrice = listPriceUSD(C.consulting.cslt301_prices);
 
   const supportSection = supportOpts.length ? `
     <div class="config-section" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:20px 24px;margin-bottom:16px">
@@ -3831,9 +3831,9 @@ function renderStep7() {
     skuRows.push({ section: 'consulting', sku: 'CSLT107', name: 'Nuix Advantage – Top Up 24 Hours (BYO AI Implementation)', qty: 7, unit: 'Per 24-hr pack', layer: 'foundation', unitBaseUSD: byoRate5 });
   }
   if (state.advantageServices?.implementationPackage)
-    skuRows.push({ section: 'consulting', sku: 'CSLT300', name: 'Nuix Neo Foundation Implementation Package', qty: 1, unit: 'Per instance', layer: 'consulting', unitBaseUSD: C.consulting.cslt300_price, year1Only: true });
+    skuRows.push({ section: 'consulting', sku: 'CSLT300', name: 'Nuix Neo Foundation Implementation Package', qty: 1, unit: 'Per instance', layer: 'consulting', unitBaseUSD: listPriceUSD(C.consulting.cslt300_prices), year1Only: true });
   if (state.advantageServices?.solutionImplementationPackage)
-    skuRows.push({ section: 'consulting', sku: 'CSLT301', name: 'Nuix Neo Solution Implementation Package', qty: 1, unit: 'Per instance', layer: 'consulting', unitBaseUSD: C.consulting.cslt301_price, year1Only: true });
+    skuRows.push({ section: 'consulting', sku: 'CSLT301', name: 'Nuix Neo Solution Implementation Package', qty: 1, unit: 'Per instance', layer: 'consulting', unitBaseUSD: listPriceUSD(C.consulting.cslt301_prices), year1Only: true });
 
   // Section 6 — Test Environments
   nonProdSkuRows().forEach(r => skuRows.push({ section: 'nonProd', layer: 'nonProd', ...r, name: r.notes ? `${r.name} (${r.notes})` : r.name }));
@@ -4309,10 +4309,10 @@ function buildSkuRows() {
 
   // ── Consulting ───────────────────────────────────────────────────────────────
   if (state.advantageServices?.implementationPackage) {
-    rows.push({ sku: 'CSLT300', name: 'Nuix Neo Foundation Implementation Package', qty: 1, unit: 'Per instance', notes: 'Year 1 only', layer: 'consulting', unitBaseUSD: C.consulting.cslt300_price, year1Only: true, key: 'cons_implementation', category: 'nuixServices' });
+    rows.push({ sku: 'CSLT300', name: 'Nuix Neo Foundation Implementation Package', qty: 1, unit: 'Per instance', notes: 'Year 1 only', layer: 'consulting', unitBaseUSD: listPriceUSD(C.consulting.cslt300_prices), year1Only: true, key: 'cons_implementation', category: 'nuixServices' });
   }
   if (state.advantageServices?.solutionImplementationPackage) {
-    rows.push({ sku: 'CSLT301', name: 'Nuix Neo Solution Implementation Package', qty: 1, unit: 'Per instance', notes: 'Year 1 only', layer: 'consulting', unitBaseUSD: C.consulting.cslt301_price, year1Only: true, key: 'cons_solutionImplementation', category: 'nuixServices' });
+    rows.push({ sku: 'CSLT301', name: 'Nuix Neo Solution Implementation Package', qty: 1, unit: 'Per instance', notes: 'Year 1 only', layer: 'consulting', unitBaseUSD: listPriceUSD(C.consulting.cslt301_prices), year1Only: true, key: 'cons_solutionImplementation', category: 'nuixServices' });
   }
 
   // ── Test Environments ────────────────────────────────────────────────────────
@@ -4541,9 +4541,8 @@ function enterDiscoverSuite() {
   // Drop any Neo test environments already ticked, so they can't be priced unseen
   cfg().non_prod.skus.filter(s => s.family === 'Nuix Neo').forEach(s => { delete state.nonProd.qty[s.sku]; });
   if (state.customer.dealType === 'Neo Expansion') state.customer.dealType = '';
-  if (!state.enhancedCap.discover_saas.selected && !state.enhancedCap.discover_onprem.selected) {
-    state.enhancedCap.discover_saas.selected = true;
-  }
+  // Neither Discover SaaS nor On-Prem is pre-selected — the rep chooses on the Discover step
+  // (validateStep still requires at least one before moving on).
 }
 
 function isStepSkipped(n) {
@@ -4626,8 +4625,8 @@ function updateLiveQuote() {
   const qpPeriods   = getContractPeriods();
   // The Implementation Packages are one-time Year 1 charges baked into the consulting layer's
   // net — strip them out before projecting later periods so they aren't repeated every year.
-  const year1OnlyBaseLQ = (state.advantageServices?.implementationPackage ? C.consulting.cslt300_price : 0)
-    + (state.advantageServices?.solutionImplementationPackage ? C.consulting.cslt301_price : 0);
+  const year1OnlyBaseLQ = (state.advantageServices?.implementationPackage ? listPriceUSD(C.consulting.cslt300_prices) : 0)
+    + (state.advantageServices?.solutionImplementationPackage ? listPriceUSD(C.consulting.cslt301_prices) : 0);
   const year1OnlyNetLQ = state.currentStep >= (layerStepGate.consulting || 6)
     ? year1OnlyBaseLQ * (1 - layers.consulting.salesDisc)
     : 0;
@@ -5625,8 +5624,8 @@ function generateFullQuote() {
   const upliftPctFQ = parseFloat(cust.annualUplift) || 0;
   // The Implementation Packages are one-time Year 1 charges baked into the consulting layer's
   // net — strip them out before projecting later periods so they aren't repeated every year.
-  const year1OnlyBaseFQ = (state.advantageServices?.implementationPackage ? C.consulting.cslt300_price : 0)
-    + (state.advantageServices?.solutionImplementationPackage ? C.consulting.cslt301_price : 0);
+  const year1OnlyBaseFQ = (state.advantageServices?.implementationPackage ? listPriceUSD(C.consulting.cslt300_prices) : 0)
+    + (state.advantageServices?.solutionImplementationPackage ? listPriceUSD(C.consulting.cslt301_prices) : 0);
   const year1OnlyNetFQ = year1OnlyBaseFQ * (1 - layers.consulting.salesDisc);
   const totRecurringFQ = totNet - year1OnlyNetFQ;
   const netForPeriodFQ = pi => pi === 0 ? totNet : totRecurringFQ;
@@ -6717,10 +6716,10 @@ function generateBudgetQuote(variant) {
   }
   // Implementation package & consulting
   if (state.advantageServices?.implementationPackage) {
-    rows.push({ sku: 'CSLT300', name: 'Nuix Neo Foundation Implementation Package', qty: 1, unit: 'Per instance', layer: 'consulting', unitBaseUSD: C.consulting.cslt300_price, year1Only: true });
+    rows.push({ sku: 'CSLT300', name: 'Nuix Neo Foundation Implementation Package', qty: 1, unit: 'Per instance', layer: 'consulting', unitBaseUSD: listPriceUSD(C.consulting.cslt300_prices), year1Only: true });
   }
   if (state.advantageServices?.solutionImplementationPackage) {
-    rows.push({ sku: 'CSLT301', name: 'Nuix Neo Solution Implementation Package', qty: 1, unit: 'Per instance', layer: 'consulting', unitBaseUSD: C.consulting.cslt301_price, year1Only: true });
+    rows.push({ sku: 'CSLT301', name: 'Nuix Neo Solution Implementation Package', qty: 1, unit: 'Per instance', layer: 'consulting', unitBaseUSD: listPriceUSD(C.consulting.cslt301_prices), year1Only: true });
   }
   // 7 — Test Environments
   nonProdSkuRows().forEach(r => rows.push({ layer: 'nonProd', ...r, name: r.notes ? `${r.name} (${r.notes})` : r.name }));
@@ -7039,8 +7038,8 @@ function generateBundledQuote() {
   const upliftPctBQ = parseFloat(cust.annualUplift) || 0;
   // The Implementation Packages are one-time Year 1 charges baked into the consulting layer's
   // net — strip them out before projecting later periods so they aren't repeated every year.
-  const year1OnlyBaseBQ = (state.advantageServices?.implementationPackage ? C.consulting.cslt300_price : 0)
-    + (state.advantageServices?.solutionImplementationPackage ? C.consulting.cslt301_price : 0);
+  const year1OnlyBaseBQ = (state.advantageServices?.implementationPackage ? listPriceUSD(C.consulting.cslt300_prices) : 0)
+    + (state.advantageServices?.solutionImplementationPackage ? listPriceUSD(C.consulting.cslt301_prices) : 0);
   const year1OnlyNetBQ = year1OnlyBaseBQ * (1 - layers.consulting.salesDisc);
   const totRecurringBQ = totNet - year1OnlyNetBQ;
   const netForPeriodBQ = pi => pi === 0 ? totNet : totRecurringBQ;
@@ -9290,8 +9289,8 @@ function generateOnePager() {
   const yearRangeOP = opPeriods;
   // The Implementation Packages are one-time Year 1 charges baked into the consulting layer's
   // net — strip them out before projecting later periods so they aren't repeated every year.
-  const year1OnlyBaseOP = (state.advantageServices?.implementationPackage ? C.consulting.cslt300_price : 0)
-    + (state.advantageServices?.solutionImplementationPackage ? C.consulting.cslt301_price : 0);
+  const year1OnlyBaseOP = (state.advantageServices?.implementationPackage ? listPriceUSD(C.consulting.cslt300_prices) : 0)
+    + (state.advantageServices?.solutionImplementationPackage ? listPriceUSD(C.consulting.cslt301_prices) : 0);
   const year1OnlyNetOP = year1OnlyBaseOP * (1 - layers.consulting.salesDisc);
   const totRecurringOP = totNet - year1OnlyNetOP;
   const netForPeriodOP = pi => pi === 0 ? totNet : totRecurringOP;

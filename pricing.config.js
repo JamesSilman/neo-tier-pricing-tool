@@ -256,6 +256,9 @@
   consulting: {
     cslt300_price: 31310,
     cslt301_price: 46020,
+    // Fixed FY27 list prices per currency (one-off, per instance) — used as-is rather than converting from USD
+    cslt300_prices: { USD: 31310, AUD: 48920, CAD: 43980, EUR: 29240, GBP: 24380 },   // Nuix Neo Foundation Implementation Package
+    cslt301_prices: { USD: 46020, AUD: 71900, CAD: 64640, EUR: 43240, GBP: 35830 },   // Nuix Neo Solution Implementation Package
     // Fixed list prices per currency (per unit per year) — used as-is rather than converting from USD
     cslt104_prices:      { USD: 8040, AUD: 11490, CAD: 10680, EUR: 7100, GBP: 6350 },   // Nuix Advantage Discover SaaS (v1.0)
     cslt107_topup_prices: { USD: 6700, AUD: 9600,  CAD: 8900,  EUR: 5900, GBP: 5300 },   // Nuix Advantage – Top Up 24 (24 hours consulting), Discover quotes
