@@ -291,6 +291,10 @@ const COUNTRY_CURRENCY = {
   'Germany': 'EUR', 'France': 'EUR', 'Netherlands': 'EUR', 'Belgium': 'EUR',
   'Switzerland': 'EUR', 'Sweden': 'EUR', 'Norway': 'EUR', 'Denmark': 'EUR',
   'Spain': 'EUR', 'Italy': 'EUR',
+  'Austria': 'EUR', 'Croatia': 'EUR', 'Cyprus': 'EUR', 'Estonia': 'EUR',
+  'Finland': 'EUR', 'Greece': 'EUR', 'Ireland': 'EUR', 'Latvia': 'EUR',
+  'Lithuania': 'EUR', 'Luxembourg': 'EUR', 'Malta': 'EUR', 'Portugal': 'EUR',
+  'Slovakia': 'EUR', 'Slovenia': 'EUR', 'Montenegro': 'EUR',
 };
 function getDefaultCurrency(country) { return COUNTRY_CURRENCY[country] || 'USD'; }
 function setCurrency(code) {
@@ -524,15 +528,16 @@ function getSupportIncrementalCost(selectedKey, tierSupportName) {
     'Advantage Gold':       C.support_booster_prices.gold
   };
   const included = levelPrice[tierSupportName] || 0;
-  const selected = C.support_booster_prices[selectedKey] || 0;
+  // No included level (Discover-only quote): the chosen level is priced in full at its CSLT101/102/103 price.
+  const selected = (included ? C.support_booster_prices : (C.support_level_prices || C.support_booster_prices))[selectedKey] || 0;
   return Math.max(0, selected - included);
 }
 
 // SKU for a Neo support upgrade. Gold is split by what the tier already includes:
-// CSLT103US upgrades from Bronze (Standard/Accelerate), CSLT103UMD from Silver (Performance).
+// CSLT103UB upgrades from Bronze (Standard/Accelerate), CSLT103USV from Silver (Performance).
 // Bronze is never an upgrade on Neo (every tier includes at least Bronze).
 function neoSupportUpgradeSku(selectedKey, tierSupportName) {
-  if (selectedKey === 'gold') return tierSupportName === 'Advantage Silver' ? 'CSLT103UMD' : 'CSLT103US';
+  if (selectedKey === 'gold') return tierSupportName === 'Advantage Silver' ? 'CSLT103USV' : 'CSLT103UB';
   return { bronze: 'CSLT101', silver: 'CSLT102U' }[selectedKey];
 }
 
@@ -7452,9 +7457,9 @@ function showPriceList() {
     boost:   tierKeys.map(k => ({ key: k, name: C.foundation_tiers[k].name, b: C.foundation_boosters[k] })),
     consTiers: tierKeys.map(k => ({ key: k, name: C.consumption_tiers[k].name, price: C.consumption_tiers[k].price, included_tb: C.consumption_tiers[k].included_tb, users: C.consumption_tiers[k].users, training_hours: C.consumption_tiers[k].training_hours, tb_booster_rate: C.consumption_tiers[k].tb_booster_rate })),
     support: [
-      { key: 'bronze', name: 'Advantage Bronze upgrade', desc: 'Included in Standard', price: C.support_booster_prices.bronze },
-      { key: 'silver', name: 'Advantage Silver upgrade', desc: 'Upgrade from Advantage Bronze',     price: C.support_booster_prices.silver },
-      { key: 'gold',   name: 'Advantage Gold upgrade',   desc: 'Upgrade from Advantage Silver',     price: C.support_booster_prices.gold   }
+      { key: 'silver',      sku: 'CSLT102U',   name: 'Advantage Silver upgrade',             desc: 'Upgrade from Advantage Bronze', price: C.support_booster_prices.silver - C.support_booster_prices.bronze },
+      { key: 'gold_bronze', sku: 'CSLT103UB',  name: 'Advantage Gold upgrade (from Bronze)', desc: 'Upgrade from Advantage Bronze', price: C.support_booster_prices.gold - C.support_booster_prices.bronze },
+      { key: 'gold_silver', sku: 'CSLT103USV', name: 'Advantage Gold upgrade (from Silver)', desc: 'Upgrade from Advantage Silver', price: C.support_booster_prices.gold - C.support_booster_prices.silver }
     ],
     ai: Object.entries(C.ai_suite_modules).map(([key, m]) => ({ key, name: m.name, prices: tierKeys.map(k => m.price[k]) })),
     uc: Object.entries(C.use_case_modules).map(([key, m]) => ({ key, name: m.label, desc: m.description, prices: tierKeys.map(k => m.price[k]) })),
@@ -7559,7 +7564,6 @@ function showPriceList() {
     worker:        { light: 'NEOBWS',   core: 'NEOBWMD',  rapid: 'NEOBWL' },
     volume:        { light: 'NEO-BOOST-VOL-L', core: 'NEO-BOOST-VOL-C', rapid: 'NEO-BOOST-VOL-R' },
     user:          { light: 'NEOBRS',   core: 'NEOBRMD',  rapid: 'NEOBRL' },
-    support:       { bronze: 'CSLT101', silver: 'CSLT102 / CSLT102U', gold: 'CSLT103 / CSLT103US / CSLT103UMD' },
     ai: {
       ai_bundle:        { light: 'NEOAIBNDL01S', core: 'NEOAIBNDL01MD', rapid: 'NEOAIBNDL01L' },
       enrich:           { light: 'NEOAI001S', core: 'NEOAI001MD', rapid: 'NEOAI001L' },
@@ -7690,10 +7694,10 @@ function showPriceList() {
   // Advantage & Implementation
   html += sect('Layer 4 — Advantage & Implementation', null, [
     ...D.support.map(s =>
-      '<tr>' + lbl(s.name, s.desc) + pc(inp(s.price, 'support_booster_prices.' + s.key, '/ yr · ' + SKU.support[s.key])) + '</tr>'
+      '<tr>' + lbl(s.name, s.desc) + pc(inp(s.price, 'support_booster_prices.' + s.key, '/ yr · ' + s.sku)) + '</tr>'
     ),
     '<tr>' + lbl('Nuix Advantage Top-Up 24 (CSLT107)', 'Sold in packs of 24 hrs · all tiers')
-      + pc('<div class="pfield"><div class="pv" data-usd="280" data-suf="/hr"><span class="adj-val">$280</span><span class="suf-val"> /hr</span></div></div>')
+      + pc('<div class="pfield"><div class="pv" data-usd="6700" data-suf="/pack"><span class="adj-val">$6,700</span><span class="suf-val"> /pack</span></div></div>')
       + '</tr>',
     '<tr>' + lbl('Foundation Implementation Package (CSLT300)', 'One-off · Year 1 only for multi-year deals')
       + pc('<div class="pfield"><div class="pv" data-usd="' + D.cslt300 + '" data-suf="one-off"><span class="adj-val">' + f(D.cslt300) + '</span><span class="suf-val"> one-off</span></div></div>')
@@ -7827,17 +7831,17 @@ function showSKUListPage() {
     ['Layer 1 – Foundation Booster (Consumption)','NEOBTBS','Additional TB – Standard (Consumption)','Per TB/yr','$31,000',''],
     ['Layer 1 – Foundation Booster (Consumption)','NEOBTBMD','Additional TB – Accelerate (Consumption)','Per TB/yr','$20,000',''],
     ['Layer 1 – Foundation Booster (Consumption)','NEOBTBL','Additional TB – Performance (Consumption)','Per TB/yr','$19,200',''],
-    ['Layer 4 – Advantage & Implementation','CSLT101','Support – Advantage Bronze','Per year','$30,000','Discover-only quotes (no included level)'],
+    ['Layer 4 – Advantage & Implementation','CSLT101','Support – Advantage Bronze','Per year','$32,890','Discover-only quotes (no included level)'],
     ['Layer 4 – Advantage & Implementation','CSLT102U','Support Upgrade – Advantage Silver','Per year','$60,000','Neo only · $30,000 incremental from Bronze'],
-    ['Layer 4 – Advantage & Implementation','CSLT102','Support – Advantage Silver','Per year','$60,000','Discover-only quotes (no included level)'],
-    ['Layer 4 – Advantage & Implementation','CSLT103','Support – Advantage Gold','Per year','$105,000','Discover-only quotes (no included level)'],
-    ['Layer 4 – Advantage & Implementation','CSLT103US','Support Upgrade Advantage Gold - Standard','Per year','$75,000','Neo only · upgrade from Bronze'],
-    ['Layer 4 – Advantage & Implementation','CSLT103UMD','Support Upgrade Advantage Gold - Accelerate','Per year','$45,000','Neo only · upgrade from Silver'],
+    ['Layer 4 – Advantage & Implementation','CSLT102','Support – Advantage Silver','Per year','$61,800','Discover-only quotes (no included level)'],
+    ['Layer 4 – Advantage & Implementation','CSLT103','Support – Advantage Gold','Per year','$108,860','Discover-only quotes (no included level)'],
+    ['Layer 4 – Advantage & Implementation','CSLT103UB','Support Upgrade Advantage Gold - Standard','Per year','$75,000','Neo only · upgrade from Bronze'],
+    ['Layer 4 – Advantage & Implementation','CSLT103USV','Support Upgrade Advantage Gold - Accelerate','Per year','$45,000','Neo only · upgrade from Silver'],
     ['Layer 4 – Advantage & Implementation','CSLT101F','Advantage Bronze','Per year','$0','Included with Foundation tier'],
     ['Layer 4 – Advantage & Implementation','CSLT102F','Advantage Silver','Per year','$0','Included with Foundation tier'],
     ['Layer 4 – Advantage & Implementation','CSLT103F','Advantage Gold','Per year','$0','Included with Foundation tier'],
     ['Layer 4 – Advantage & Implementation','TRNNEO001','Training Credits','Per year','$0','Included with Foundation tier — 100/300/800 credits by tier'],
-    ['Layer 4 – Advantage & Implementation','CSLT107','Nuix Advantage - Top Up 24 Hours','Per hour','$280','Sold in packs of 24 hrs'],
+    ['Layer 4 – Advantage & Implementation','CSLT107','Nuix Advantage - Top Up 24 Hours','Per 24-hr pack','$6,700','Sold in packs of 24 hrs'],
     ['Layer 4 – Advantage & Implementation','CSLT300','Nuix Neo Foundation Implementation Package','Per instance','$31,310','One-off · Year 1 only for multi-year deals'],
     ['Layer 4 – Advantage & Implementation','CSLT301','Nuix Neo Solution Implementation Package','Per instance','$46,020','One-off · Year 1 only for multi-year deals'],
     ['Layer 2 – AI Suite','NEOAIBNDL01S','AI Bundle – Standard','Per year','$105,000','Enrich + Semantic Search + Transcription + Solutions Library · 30% below buying separately'],
@@ -7887,9 +7891,9 @@ function showSKUListPage() {
     ['Layer 3 – Enhanced Capability','NRTDISC01','Nuix Discover On-Prem – Ingestions','Per worker/yr','$22,340','Neo licensing'],
     ['Layer 3 – Enhanced Capability','NW001','Nuix Discover On-Prem – Ingestions','Per worker/yr','$22,340','Component licensing'],
     ['Layer 3 – Enhanced Capability','NRTDISCXLR01','Nuix Discover On-Prem – Native Excel Redaction','Per instance/yr','$7,000',''],
-    ['Layer 3 – Enhanced Capability','ENDPT001','Adaptive Security – Endpoint','Per endpoint/yr','$20',''],
-    ['Layer 3 – Enhanced Capability','ENDPTUSER','Adaptive Security – User','Per user/yr','$3,000',''],
-    ['Layer 3 – Enhanced Capability','ENDPTSVR','Adaptive Security – Server','Per server/yr','$30,000',''],
+    ['Layer 3 – Enhanced Capability','ENDPT001','Adaptive Security – Endpoint','Per endpoint/yr','$34',''],
+    ['Layer 3 – Enhanced Capability','ENDPTUSER','Adaptive Security – User','Per user/yr','$5,100',''],
+    ['Layer 3 – Enhanced Capability','ENDPTSVR','Adaptive Security – Server','Per server/yr','$56,700',''],
     ['Layer 3 – Enhanced Capability','ENDPT101','ECC (Enterprise Collection Centre)','Per endpoint/yr','$8',''],
     ['Layer 3 – Enhanced Capability','RALH001','Nuix Automate Legal Hold','Per custodian/month','$2',''],
     ['Layer 3 – Enhanced Capability','NEOREL01','Automated Relativity Export and Orchestration','Per year','$75,000',''],
@@ -8605,7 +8609,7 @@ function showPricingGuide() {
         <table>
           <thead><tr><th>SKU</th><th>Description</th><th class="right">List Price</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td><strong>CSLT107</strong></td><td>Nuix Advantage – Top Up 24 Hours</td><td class="price-cell" style="text-align:right">$280 / hr</td><td><div class="sub-text">Sold in packs of 24 hrs ($6,720 / pack) · all tiers</div></td></tr>
+            <tr><td><strong>CSLT107</strong></td><td>Nuix Advantage – Top Up 24 Hours</td><td class="price-cell" style="text-align:right">$6,700 / pack</td><td><div class="sub-text">Sold in packs of 24 hrs (~$279 / hr) · all tiers</div></td></tr>
           </tbody>
         </table>
         <div class="booster-head">Implementation Packages (CSLT300, CSLT301)</div>

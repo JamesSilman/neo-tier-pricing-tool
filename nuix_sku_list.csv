@@ -14,13 +14,13 @@ Layer 1 – Foundation Booster,NEOBRL,Additional Concurrent User – Performance
 Layer 1 – Foundation Booster (Consumption),NEOBTBS,Additional TB – Standard (Consumption),Nuix Neo,Per TB/yr,"$31,000",,Y
 Layer 1 – Foundation Booster (Consumption),NEOBTBMD,Additional TB – Accelerate (Consumption),Nuix Neo,Per TB/yr,"$20,000",,Y
 Layer 1 – Foundation Booster (Consumption),NEOBTBL,Additional TB – Performance (Consumption),Nuix Neo,Per TB/yr,"$19,200",,Y
-Layer 4 – Advantage & Implementation,CSLT107,Advantage - Top Up 24,Nuix Neo,Per hour,$280,,Y
-Layer 4 – Advantage & Implementation,CSLT101,Support – Advantage Bronze,Discover,Per year,"$30,000",Discover-only quotes (no included level),Y
+Layer 4 – Advantage & Implementation,CSLT107,Advantage - Top Up 24,Nuix Neo,Per 24-hr pack,"$6,700",,Y
+Layer 4 – Advantage & Implementation,CSLT101,Support – Advantage Bronze,Discover,Per year,"$32,890",Discover-only quotes (no included level),Y
 Layer 4 – Advantage & Implementation,CSLT102U,Support Upgrade – Advantage Silver,Nuix Neo,Per year,"$60,000",Neo only · upgrade from Bronze,Y
-Layer 4 – Advantage & Implementation,CSLT102,Support – Advantage Silver,Discover,Per year,"$60,000",Discover-only quotes (no included level),Y
-Layer 4 – Advantage & Implementation,CSLT103,Support – Advantage Gold,Discover,Per year,"$105,000",Discover-only quotes (no included level),Y
-Layer 4 – Advantage & Implementation,CSLT103US,Support Upgrade Advantage Gold - Standard,Nuix Neo,Per year,"$75,000",Neo only · upgrade from Bronze,Y
-Layer 4 – Advantage & Implementation,CSLT103UMD,Support Upgrade Advantage Gold - Accelerate,Nuix Neo,Per year,"$45,000",Neo only · upgrade from Silver,Y
+Layer 4 – Advantage & Implementation,CSLT102,Support – Advantage Silver,Discover,Per year,"$61,800",Discover-only quotes (no included level),Y
+Layer 4 – Advantage & Implementation,CSLT103,Support – Advantage Gold,Discover,Per year,"$108,860",Discover-only quotes (no included level),Y
+Layer 4 – Advantage & Implementation,CSLT103UB,Support Upgrade Advantage Gold - Standard,Nuix Neo,Per year,"$75,000",Neo only · upgrade from Bronze,Y
+Layer 4 – Advantage & Implementation,CSLT103USV,Support Upgrade Advantage Gold - Accelerate,Nuix Neo,Per year,"$45,000",Neo only · upgrade from Silver,Y
 Layer 4 – Advantage & Implementation,CSLT101F,Advantage Bronze,Nuix Neo,Per year,$0,Included with Foundation tier,Y
 Layer 4 – Advantage & Implementation,CSLT102F,Advantage Silver,Nuix Neo,Per year,$0,Included with Foundation tier,Y
 Layer 4 – Advantage & Implementation,CSLT103F,Advantage Gold,Nuix Neo,Per year,$0,Included with Foundation tier,Y
@@ -71,9 +71,9 @@ Layer 3 – Enhanced Capability,NRTDISCAI01,Nuix Discover On-Prem – AI Review,
 Layer 3 – Enhanced Capability,NRTDISCAI02,Nuix Discover On-Prem – Enrich (OOTB Models),Discover,Per instance/yr,"$45,500",,Y
 Layer 3 – Enhanced Capability,NRTDISC01,Nuix Discover On-Prem – Ingestions,Discover,Per worker/yr,"$22,340",,Y
 Layer 3 – Enhanced Capability,NRTDISCXLR01,Nuix Discover On-Prem – Native Excel Redaction,Discover,Per instance/yr,"$7,000",,Y
-Layer 3 – Enhanced Capability,ENDPT001,Adaptive Security – Endpoint,Component,Per endpoint/yr,$20,,Y
-Layer 3 – Enhanced Capability,ENDPTUSER,Adaptive Security – User,Component,Per user/yr,"$3,000",,Y
-Layer 3 – Enhanced Capability,ENDPTSVR,Adaptive Security – Server,Component,Per server/yr,"$30,000",,Y
+Layer 3 – Enhanced Capability,ENDPT001,Adaptive Security – Endpoint,Component,Per endpoint/yr,$34,,Y
+Layer 3 – Enhanced Capability,ENDPTUSER,Adaptive Security – User,Component,Per user/yr,"$5,100",,Y
+Layer 3 – Enhanced Capability,ENDPTSVR,Adaptive Security – Server,Component,Per server/yr,"$56,700",,Y
 Layer 3 – Visualisation,VISBNDL001S,Visualisation Bundle – Small,Visualisation,Per bundle/yr,"$95,860","10 Named Users + 64GB Memory, no discount vs. buying components separately",Y
 Layer 3 – Visualisation,VISBNDL001MD,Visualisation Bundle – Medium,Visualisation,Per bundle/yr,"$168,970","25 Named Users + 128GB Memory, no discount vs. buying components separately",Y
 Layer 3 – Visualisation,VISBNDL001L,Visualisation Bundle – Large,Visualisation,Per bundle/yr,"$228,720","50 Named Users + 256GB Memory, no discount vs. buying components separately",Y

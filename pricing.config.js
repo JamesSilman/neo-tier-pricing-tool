@@ -15,17 +15,25 @@
     // $155,000/10 = $31,000; Accelerate 2 x $400,000/30 = $26,667, rounded to a clean
     // $27,000; Performance 2 x $720,000/60 = $24,000. volume_tb/user/training_hour are
     // unrelated to this rule and stay as they were.
-    light:      { worker: 31000, volume_tb: 6000, user: 9000, training_hour: 6720 },
-    core:       { worker: 27000, volume_tb: 5333, user: 6000, training_hour: 6720 },
+    light:      { worker: 31000, volume_tb: 6000, user: 9000, training_hour: 6700 },
+    core:       { worker: 27000, volume_tb: 5333, user: 6000, training_hour: 6700 },
     // Performance: volume_tb stays 0/unused (see foundation_tiers.rapid note above);
     // user and training_hour are intentionally unchanged.
-    rapid:      { worker: 24000, volume_tb: 0,    user: 3000, training_hour: 6720 }
+    rapid:      { worker: 24000, volume_tb: 0,    user: 3000, training_hour: 6700 }
   },
 
   support_booster_prices: {
     bronze: 30000,
     silver: 60000,
     gold:   105000
+  },
+
+  // Full list price of each Advantage level on Discover-only quotes (CSLT101/102/103, FY27 pricebook).
+  // support_booster_prices above stays as-is: Neo upgrades are the differences between its levels.
+  support_level_prices: {
+    bronze: 32890,
+    silver: 61800,
+    gold:   108860
   },
 
   support_included_hours: {
@@ -112,7 +120,7 @@
           component: { sku: 'NW001',     label: 'Component' }
         }
       },
-      adaptive_security: { name: 'Adaptive Security',       description: 'Endpoint security and insider threat detection across endpoints, users and servers.',       pricing_model: 'compound',              price_per_endpoint: 20,    price_per_user: 3000, price_per_server: 30000 },
+      adaptive_security: { name: 'Adaptive Security',       description: 'Endpoint security and insider threat detection across endpoints, users and servers.',       pricing_model: 'compound',              price_per_endpoint: 34,    price_per_user: 5100, price_per_server: 56700 },
       linkurious:        { name: 'Knowledge Graph',           description: 'Graph analytics for complex network and relationship analysis.',                           pricing_model: 'linkurious_tiers',
         user_tiers: [
           { key: 'u20',  sku: 'KGU002', name: '20 Named Users',  price: 83240,  users: 20  },
