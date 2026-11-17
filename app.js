@@ -2,6 +2,7 @@
 const state = {
   currentStep: 1,
   maxStep: 1,
+  dealAck: false,   // user typed YES on the $1m+ deal-size banner (resets if the deal drops below $1m)
   productSuite: 'neo',
   pricingModel: 'worker',
   customer: { name: '', country: '', type: '', primaryUseCase: '', dealType: '', channel: '', opportunityLink: '', isPOC: false, pocDuration: 3, pocDiscount: 0, contractMonths: 36, contractStartDate: '', partialYearPosition: 'end', annualUplift: 10 },
@@ -93,6 +94,7 @@ function restoreState() {
 function migrateLoadedState() {
   if (!state.partnerMargins?.bySku) state.partnerMargins = { bySku: {} };
   if (!state.nonProd?.qty) state.nonProd = { qty: {} };
+  if (typeof state.dealAck !== 'boolean') state.dealAck = false;
   if ((state.stepLayout || 1) < 2) {
     if (state.currentStep >= 14) state.currentStep += 1;
     if (state.maxStep     >= 14) state.maxStep     += 1;
@@ -281,8 +283,8 @@ const VALUE_LEVERS_BY_USE_CASE = {
 const CURRENCIES = {
   USD: { symbol: '$',   name: 'USD', rate: 1.0000 },
   AUD: { symbol: 'A$',  name: 'AUD', rate: 1.4286 },
-  CAD: { symbol: 'C$',  name: 'CAD', rate: 1.3275 },
-  EUR: { symbol: '€',   name: 'EUR', rate: 0.8832 },
+  CAD: { symbol: 'C$',  name: 'CAD', rate: 1.32745 },
+  EUR: { symbol: '€',   name: 'EUR', rate: 0.88315 },
   GBP: { symbol: '£',   name: 'GBP', rate: 0.7895 },
 };
 const COUNTRY_CURRENCY = {
@@ -2635,7 +2637,6 @@ function renderTierRecommendation() {
 
   const boosterLines = [];
   if (bst.workers > 0)      boosterLines.push(`+${bst.workers} workers (${fmt(bst.workers * b.worker * discFactor)})`);
-  if (bst.volume > 0)       boosterLines.push(`+${bst.volume} TB (${fmt(bst.volume * b.volume_tb * discFactor)})`);
   if (bst.users > 0)        boosterLines.push(`+${bst.users} users (${fmt(bst.users * b.user * discFactor)})`);
 
   // Tier-switch pills — cost every tier against the raw requirement (not just the
@@ -2769,7 +2770,6 @@ function renderTierRecommendation() {
     if (fraction >= 0.5) {
       const driverLines = [];
       if (bst.workers > 0)       driverLines.push(`<li><strong>${bst.workers} additional workers</strong> — ${fmt(bst.workers * b.worker * discFactor)}/yr</li>`);
-      if (bst.volume > 0)        driverLines.push(`<li><strong>${bst.volume} TB additional volume</strong> — ${fmt(bst.volume * b.volume_tb * discFactor)}/yr</li>`);
       if (bst.users > 0)         driverLines.push(`<li><strong>${bst.users} additional users</strong> — ${fmt(bst.users * b.user * discFactor)}/yr</li>`);
       if (bst.trainingHours > 0) driverLines.push(`<li><strong>${bst.trainingHours} Nuix Advantage Top Up pack${bst.trainingHours !== 1 ? 's' : ''}</strong> (${bst.trainingHours * 24} credits) — ${fmt(bst.trainingHours * b.training_hour * discFactor)}/yr</li>`);
       if (bst.support)           driverLines.push(`<li><strong>${supportOpts.find(o=>o.key===bst.support)?.name} support upgrade</strong> — ${fmt(getSupportIncrementalCost(bst.support, t.support) * discFactor)}/yr</li>`);
@@ -2781,12 +2781,10 @@ function renderTierRecommendation() {
       const gainChips = (() => {
         const chips = [];
         const dw = nt.workers       - (t.workers    + bst.workers);
-        const dv = nt.volume_tb     - (t.volume_tb  + bst.volume);
         const du = nt.users         - (t.users      + bst.users);
         const dh = nt.training_hours - t.training_hours;
         const chip = (txt) => `<span style="background:#EBF0FF;color:#003080;font-size:12px;font-weight:700;padding:5px 12px;border-radius:6px;letter-spacing:-0.1px">${txt}</span>`;
         if (dw > 0) chips.push(chip(`+${dw} workers`));
-        if (dv > 0) chips.push(chip(`+${dv} TB/yr`));
         if (du > 0) chips.push(chip(`+${du} users`));
         if (dh > 0) chips.push(chip(`+${dh} training credits`));
         const supportOrder = { 'Advantage Bronze': 1, 'Advantage Silver': 2, 'Advantage Gold': 3 };
@@ -4593,7 +4591,44 @@ function prevStep() {
   if (state.currentStep > 1) showStep(stepBefore(state.currentStep));
 }
 
+// Screen-only deal-size warnings (never part of generated quotes), based on annual net value in USD:
+//  - Americas, >= $800k: amber notice.
+//  - Any region, >= $1m: red banner requiring the user to type YES (does not block anything).
+//    The acknowledgement resets when the deal drops back below $1m.
+const DEAL_BANNER_THRESHOLD_USD = 800_000;
+const DEAL_GATE_THRESHOLD_USD   = 1_000_000;
+
+function updateDealBanner() {
+  const notice = $('deal-banner');
+  const gate   = $('deal-gate');
+  if (!notice || !gate) return;
+  const acv     = Object.values(calcPrices()).reduce((s, l) => s + l.net, 0);
+  const isAmer  = cfg().regions.Americas.includes(state.customer.country);
+  const showGate = acv >= DEAL_GATE_THRESHOLD_USD;
+  if (!showGate) state.dealAck = false;
+  notice.style.display = !showGate && isAmer && acv >= DEAL_BANNER_THRESHOLD_USD ? '' : 'none';
+  gate.style.display = showGate ? '' : 'none';
+  if (showGate) {
+    $('deal-gate-open').style.display = state.dealAck ? 'none' : '';
+    $('deal-gate-done').style.display = state.dealAck ? '' : 'none';
+    gate.classList.toggle('acknowledged', !!state.dealAck);
+    const input = $('deal-gate-input');
+    if (input && !state.dealAck && document.activeElement !== input) input.value = '';
+  }
+  // Sidebars are sticky below the header; push them below the sticky red banner too.
+  document.documentElement.style.setProperty('--banner-h', showGate ? gate.offsetHeight + 'px' : '0px');
+}
+
+function onDealGateInput(value) {
+  if (value.trim().toLowerCase() !== 'yes') return;
+  state.dealAck = true;
+  persistState();
+  updateDealBanner();
+}
+window.addEventListener('resize', () => { if (typeof updateDealBanner === 'function') updateDealBanner(); });
+
 function updateLiveQuote() {
+  updateDealBanner();
   const panel = $('quote-panel');
   if (!panel) return;
 
@@ -7608,11 +7643,22 @@ function showPriceList() {
     return 1 - floor;   // max discount before CEO approval (excl. multi-year)
   }
 
-  function f(n) { return curSym + Math.round(n).toLocaleString('en-US'); }
+  // Same rule as the Salesforce SKU pricebook: convert at the rate, then round amounts of 10
+  // and above to the nearest 10 and amounts below 10 to the nearest 0.01. USD is shown as listed.
+  function conv(usd) {
+    const v = usd * factor;
+    if (factor === 1) return v;
+    return Math.abs(v) >= 10 ? Math.round(v / 10) * 10 : Math.round(v * 100) / 100;
+  }
+  function f(n) {
+    return curSym + (Number.isInteger(n)
+      ? n.toLocaleString('en-US')
+      : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  }
 
   function inp(usd, path, suf) {
     const sufVal = suf ? '<span class="suf-val"> ' + suf + '</span>' : '';
-    const adj    = Math.round(usd * factor);
+    const adj    = conv(usd);
     return '<div class="pfield">'
       + '<div class="pv" data-usd="' + usd + '" data-suf="' + (suf||'') + '">'
       + '<span class="adj-val">' + f(adj) + '</span>' + sufVal
@@ -7637,7 +7683,7 @@ function showPriceList() {
       const pv     = field.querySelector('.pv');
       const usd    = parseFloat(pv.dataset.usd) || 0;
       const suf    = pv.dataset.suf || '';
-      const adj    = Math.round(usd * factor);
+      const adj    = conv(usd);
       const sufHtml = suf ? '<span class="suf-val"> ' + suf + '</span>' : '';
       const strike  = factor !== 1 ? '<span class="usd-list">$' + Math.round(usd).toLocaleString('en-US') + ' USD list</span>' : '';
       pv.innerHTML  = '<span class="adj-val">' + f(adj) + '</span>' + sufHtml + strike;
@@ -9794,6 +9840,14 @@ function initApp() {
         <button onclick="showPricingGuide()" style="background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);color:#fff;padding:6px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:0.2px">Pricing &amp; Packaging Guide</button>
       </div>
     </header>
+    <div id="deal-banner" class="deal-banner" style="display:none">Pricing Tool prices are not a ceiling. Check with your VP, SVP, or EVP before presenting to the customer.</div>
+    <div id="deal-gate" class="deal-gate" style="display:none">
+      <div id="deal-gate-open">
+        <div class="deal-gate-text">The Pricing Tool was designed for deals below $1m USD. At this size, prices may materially understate what the customer should pay. You must discuss this pricing with your VP, SVP and EVP before presenting it to the customer. Type YES below to proceed.</div>
+        <input type="text" id="deal-gate-input" class="deal-gate-input" placeholder="Type YES" autocomplete="off" oninput="onDealGateInput(this.value)">
+      </div>
+      <div id="deal-gate-done" class="deal-gate-done" style="display:none">Acknowledged: this deal is $1m USD or greater. Discuss this pricing with your VP, SVP and EVP before presenting it to the customer.</div>
+    </div>
     <div class="app-layout">
       <aside class="sidebar">
         <div id="sidebar-nav"></div>

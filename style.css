@@ -39,6 +39,36 @@ header {
 header h1 { color: #fff; font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
 header .badge { color: rgba(255,255,255,0.5); font-size: 11px; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 8px; }
 
+/* ── Deal banner (AMER >= $800k) ── */
+.deal-banner {
+  background: #FEF3C7;
+  border-bottom: 1.5px solid #F59E0B;
+  color: #92400E;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  padding: 10px 32px;
+}
+
+/* ── Deal gate banner (>= $1m, all regions) ── */
+.deal-gate {
+  position: sticky;
+  top: 60px;
+  z-index: 90;
+  background: #B91C1C;
+  color: #fff;
+  padding: 14px 32px;
+  border-bottom: 2px solid #7F1D1D;
+  text-align: center;
+}
+.deal-gate-text { font-size: 15px; font-weight: 700; line-height: 1.5; max-width: 900px; margin: 0 auto 10px; }
+.deal-gate-input {
+  width: 160px !important; display: block; margin: 0 auto; padding: 8px 12px; border-radius: 6px; border: 2px solid #fff;
+  font-size: 15px; font-weight: 700; text-align: center; text-transform: uppercase; color: #7F1D1D;
+}
+.deal-gate.acknowledged { padding: 8px 32px; }
+.deal-gate-done { font-size: 13px; font-weight: 700; }
+
 /* ── App layout (sidebar + content) ── */
 .app-layout {
   display: flex;
@@ -53,8 +83,8 @@ header .badge { color: rgba(255,255,255,0.5); font-size: 11px; border: 1px solid
   border-right: 1px solid var(--border);
   padding: 24px 0 0;
   position: sticky;
-  top: 60px;
-  height: calc(100vh - 60px);
+  top: calc(60px + var(--banner-h, 0px));
+  height: calc(100vh - 60px - var(--banner-h, 0px));
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -150,8 +180,8 @@ header .badge { color: rgba(255,255,255,0.5); font-size: 11px; border: 1px solid
   background: #fff;
   border-left: 1px solid var(--border);
   position: sticky;
-  top: 60px;
-  height: calc(100vh - 60px);
+  top: calc(60px + var(--banner-h, 0px));
+  height: calc(100vh - 60px - var(--banner-h, 0px));
   overflow-y: auto;
 }
 .qp-inner { padding: 24px 20px 40px; }
